@@ -72,34 +72,18 @@ FROM source-builder AS builder
 
 WORKDIR /source/build/
 
-# Required to be set to ARMV7 for that target
-ARG WAMR_BUILD_TARGET
 ARG CMAKE_EXTRA_ARGS
 ENV CMAKE_EXTRA_ARGS=${CMAKE_EXTRA_ARGS}
 
 # We do not want word splitting for CMAKE_EXTRA_ARGS in case multiple are defined
 # hadolint ignore=SC2086
-RUN [ -n "${WAMR_BUILD_TARGET:-}" ] && CMAKE_EXTRA_ARGS="$CMAKE_EXTRA_ARGS -DWAMR_BUILD_TARGET=$WAMR_BUILD_TARGET"; \
-    cmake -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
     -DFLB_RELEASE=On \
-    -DFLB_TRACE=Off \
-    -DFLB_JEMALLOC=On \
-    -DFLB_TLS=On \
-    -DFLB_SHARED_LIB=Off \
-    -DFLB_EXAMPLES=Off \
-    -DFLB_HTTP_SERVER=On \
-    -DFLB_IN_SYSTEMD=On \
-    -DFLB_IN_KAFKA=On \
-    -DFLB_OUT_KAFKA=On \
-    -DFLB_OUT_PGSQL=Off \
     -DFLB_TESTS_INTERNAL=Off \
     -DFLB_TESTS_RUNTIME=Off \
     -DFLB_NIGHTLY_BUILD="$FLB_NIGHTLY_BUILD" \
     -DFLUENTDO_AGENT_VERSION="$FLUENTDO_AGENT_VERSION" \
     -DFLB_LOG_NO_CONTROL_CHARS=On \
-    -DFLB_CHUNK_TRACE=On \
-    -DFLB_ARROW=On \
-    -DFLB_AVRO_ENCODER=On \
     -DFLB_CORO_STACK_SIZE=131072 \
     ${CMAKE_EXTRA_ARGS} \
     ..
