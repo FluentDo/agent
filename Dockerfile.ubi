@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9:9.5 AS base-builder
+FROM registry.access.redhat.com/ubi9:9.6 AS base-builder
 # hadolint ignore=DL3041
 RUN dnf update -y && dnf install -y cmake3 diffutils gcc gcc-c++ git m4 make openssl-devel patch systemd-devel tar unzip libyaml-devel cyrus-sasl-devel && dnf clean all
 
