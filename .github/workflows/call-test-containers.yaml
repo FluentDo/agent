@@ -48,6 +48,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.github-token }}
+
+      - name: Run config tests
+        run: ./testing/run-config-tests.sh
+        shell: bash
+
       - name: Set up Helm
         uses: azure/setup-helm@v4
 
