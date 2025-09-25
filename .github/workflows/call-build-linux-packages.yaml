@@ -68,7 +68,38 @@ jobs:
           FLB_DISTRO: ${{ matrix.distro }}
           FLB_OUT_DIR: agent
           FLB_NIGHTLY_BUILD: ${{ inputs.nightly-build-info }}
-          FLB_ARG: --build-arg FLB_OUT_PGSQL=Off # Disable PostgreSQL output plugin
+
+          # Ensure we do not use any defaults from upstream, use our hardened config.
+          FLB_IN_CALYPTIA_FLEET: Off
+          FLB_IN_DOCKER: Off
+          FLB_IN_DOCKER_EVENTS: Off
+          FLB_IN_EXEC_WASI: Off
+          FLB_IN_MQTT: Off
+          FLB_IN_NETIF: Off
+          FLB_IN_NGINX_EXPORTER_METRICS: Off
+          FLB_IN_SERIAL: Off
+          FLB_IN_THERMAL: Off
+          FLB_FILTER_ALTER_SIZE: Off
+          FLB_FILTER_CHECKLIST: Off
+          FLB_FILTER_GEOIP2: Off
+          FLB_FILTER_NIGHTFALL: Off
+          FLB_FILTER_WASM: Off
+          FLB_OUT_CALYPTIA: Off
+          FLB_OUT_LOGDNA: Off
+          FLB_OUT_PGSQL: Off
+          FLB_OUT_TD: Off
+          FLB_OUT_VIVO_EXPORTER: Off
+
+          FLB_STREAM_PROCESSOR: Off
+          FLB_WASM: Off
+          FLB_ZIG: Off
+          FLB_PROXY_GO: Off
+          FLB_SHARED_LIB: Off
+          FLB_EXAMPLES: Off
+          FLB_RELEASE: On
+          FLB_SIMD: On
+          FLB_TRACE: Off
+          FLB_CHUNK_TRACE: Off
         working-directory: source/packaging
         shell: bash
 

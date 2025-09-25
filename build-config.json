@@ -27,7 +27,9 @@
         "ubuntu/22.04",
         "ubuntu/22.04.arm64v8",
         "ubuntu/24.04",
-        "ubuntu/24.04.arm64v8"
+        "ubuntu/24.04.arm64v8",
+        "suse/12",
+        "suse/15"
       ],
     "kind_versions": [
       "v1.31.12",
