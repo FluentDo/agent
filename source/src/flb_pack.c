@@ -64,6 +64,7 @@ int flb_json_tokenise(const char *js, size_t len,
 
     ret = jsmn_parse(&state->parser, js, len,
                      state->tokens, state->tokens_size);
+
     while (ret == JSMN_ERROR_NOMEM) {
         /* Get current size of the array in bytes */
         old_size = state->tokens_size * sizeof(jsmntok_t);
@@ -83,6 +84,7 @@ int flb_json_tokenise(const char *js, size_t len,
                          state->tokens, state->tokens_size);
     }
 
+
     if (ret == JSMN_ERROR_INVAL) {
         return FLB_ERR_JSON_INVAL;
     }
@@ -93,7 +95,8 @@ int flb_json_tokenise(const char *js, size_t len,
         return FLB_ERR_JSON_PART;
     }
 
-    state->tokens_count += ret;
+    /* always use jsmn_parser.toknext to count tokens */
+    state->tokens_count = state->parser.toknext;
     return 0;
 }
 
@@ -217,7 +220,7 @@ static char *tokens_to_msgpack(struct flb_pack_state *state,
     for (i = 0; i < arr_size ; i++) {
         t = &tokens[i];
 
-        if (t->start == -1 || t->end == -1 || (t->start == 0 && t->end == 0)) {
+        if (t->start < 0 || t->end <= 0) {
             msgpack_sbuffer_destroy(&sbuf);
             return NULL;
         }

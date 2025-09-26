@@ -294,6 +294,7 @@ void test_json_dup_keys()
     flb_free(data_out);
 }
 
+/* https://github.com/fluent/fluent-bit/issues/342 */
 void test_json_pack_bug342()
 {
     int i = 0;
@@ -970,6 +971,40 @@ void test_json_pack_bug5336()
     }
 }
 
+/* Ensure empty arrays inside nested objects are handled */
+void test_json_pack_empty_array()
+{
+    int ret;
+    int root_type;
+    size_t out_size;
+    char *out_buf;
+    char *json = "{\"resourceLogs\":[{\"resource\":{},\"scopeLogs\":[{\"scope\":{},\"logRecords\":[{\"observedTimeUnixNano\":\"1754059282910920618\",\"body\":{\"kvlistValue\":{\"values\":[{\"key\":\"a\",\"value\":{\"kvlistValue\":{\"values\":[{\"key\":\"b\",\"value\":{\"kvlistValue\":{\"values\":[{\"key\":\"c\",\"value\":{\"kvlistValue\":{\"values\":[{\"key\":\"d\",\"value\":{\"arrayValue\":{\"values\":[{\"kvlistValue\":{\"values\":[{\"key\":\"e\",\"value\":{\"kvlistValue\":{\"values\":[{\"key\":\"f\",\"value\":{\"stringValue\":\"g\"}}]}}}]}}]}}}]}}}]}}}]}}}]}}}]}]}]}";
+
+    ret = flb_pack_json( (char*) json, strlen((char *) json), &out_buf, &out_size, &root_type, NULL);
+    TEST_CHECK(ret == 0);
+
+    if (ret != 0) {
+        printf("flb_pack_json failed: %d\n", ret);
+        exit(EXIT_FAILURE);
+    }
+
+    /* unpack just to validate the msgpack buffer */
+    msgpack_unpacked result;
+
+    size_t off = 0;
+    msgpack_unpacked_init(&result);
+    off = 0;
+    TEST_CHECK(msgpack_unpack_next(&result, out_buf, out_size, &off) == MSGPACK_UNPACK_SUCCESS);
+
+    printf("\nmsgpack---:\n");
+    msgpack_object_print(stdout, result.data);
+    printf("\n");
+
+    msgpack_unpacked_destroy(&result);
+
+    flb_free(out_buf);
+}
+
 const char input_msgpack[] = {0x92,/* array 2 */
                             0xd7, 0x00, /* event time*/
                             0x07, 0x5b, 0xcd, 0x15, /* second = 123456789 = 1973/11/29 21:33:09 */
@@ -1069,7 +1104,7 @@ void test_json_pack_large_uint64()
     };
 
     for (i = 0; i < sizeof(test_cases) / sizeof(test_cases[0]); i++) {
-        p_in = test_cases[i].json_str;
+        p_in = (char *) test_cases[i].json_str;
         len_in = strlen(p_in);
         expected = test_cases[i].expected_val;
 
@@ -1103,6 +1138,50 @@ void test_json_pack_large_uint64()
     }
 }
 
+void test_json_pack_token_count_overflow()
+{
+    int i;
+    flb_sds_t json = NULL;
+    struct flb_pack_state state;
+    int ret;
+
+    flb_pack_state_init(&state);
+
+    /* Create a JSON array big enough to trigger realloc in flb_json_tokenise */
+    json = flb_sds_create("[");
+    for (i = 0; i < 300; i++) {
+        if (i > 0) {
+            flb_sds_cat_safe(&json, ",", 1);
+        }
+        json = flb_sds_printf(&json, "%d", i);
+    }
+    flb_sds_cat_safe(&json, "]", 1);
+
+    if (!TEST_CHECK(json != NULL)) {
+        TEST_MSG("Failed to allocate JSON string");
+        exit(1);
+    }
+
+    /* First parse: forces realloc at least once (because by default we have space for 256 tokens) */
+    ret = flb_json_tokenise(json, flb_sds_len(json), &state);
+    TEST_CHECK(ret == 0);
+    printf("\nFirst parse: tokens_count=%d\n", state.tokens_count);
+
+    /* Second parse with the same JSON and same state — should be ~301, but will be doubled if bug exists */
+    ret = flb_json_tokenise(json, flb_sds_len(json), &state);
+    TEST_CHECK(ret == 0);
+    printf("Second parse: tokens_count=%d (BUG if > ~301)\n", state.tokens_count);
+
+    TEST_CHECK(state.tokens_count == 301);
+    if (state.tokens_count != 301) {
+        TEST_MSG("tokens_count=%d (BUG if > ~301)\n", state.tokens_count);
+        exit(1);
+    }
+
+    flb_sds_destroy(json);
+    flb_pack_state_reset(&state);
+}
+
 TEST_LIST = {
     /* JSON maps iteration */
     { "json_pack"          , test_json_pack },
@@ -1115,6 +1194,7 @@ TEST_LIST = {
     { "json_pack_bug1278"  , test_json_pack_bug1278},
     { "json_pack_nan"      , test_json_pack_nan},
     { "json_pack_bug5336"  , test_json_pack_bug5336},
+    { "json_pack_empty_array", test_json_pack_empty_array},
     { "json_date_iso8601" , test_json_date_iso8601},
     { "json_date_double" , test_json_date_double},
     { "json_date_java_sql" , test_json_date_java_sql},
@@ -1126,7 +1206,7 @@ TEST_LIST = {
     /* Mixed bytes, check JSON encoding */
     { "utf8_to_json", test_utf8_to_json},
     { "json_pack_surrogate_pairs", test_json_pack_surrogate_pairs},
-    { "json_pack_surrogate_pairs_with_replacement",
-      test_json_pack_surrogate_pairs_with_replacement},
+    { "json_pack_surrogate_pairs_with_replacement", test_json_pack_surrogate_pairs_with_replacement},
+    { "json_pack_token_count_overflow", test_json_pack_token_count_overflow},
     { 0 }
 };

@@ -37,9 +37,12 @@
   },
 
   "missing_timestamp": {
-    "input": {"resourceLogs": [{"scopeLogs": [{"logRecords": [{}]}]}]},
-    "expected_error": {
-      "code": "FLB_OTEL_LOGS_ERR_MISSING_TIMESTAMP"
+    "input": {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"body": {"stringValue": "test"}}]}]}]},
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"log": "test"}
     }
   },
 
@@ -86,12 +89,12 @@
     }
   },
 
-  "scope_kvlist_error": {
+  "scope_kvlist_empty_value": {
     "input": {
       "resourceLogs": [{
         "scopeLogs": [{
           "scope": {
-            "attributes": [{"key": "only-key"}]
+            "attributes": [{"key": "empty-key"}]
           },
           "logRecords": [{
             "timeUnixNano": "1",
@@ -100,8 +103,33 @@
         }]
       }]
     },
-    "expected_error": {
-      "code": "FLB_OTEL_LOGS_ERR_SCOPE_KVLIST"
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}, "scope":{"attributes":{"empty-key":""}}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"log": "test"}
+    }
+  },
+
+  "scope_kvlist_wrong_value_type": {
+    "input": {
+      "resourceLogs": [{
+        "scopeLogs": [{
+          "scope": {
+            "attributes": [{"key": "empty-key"}]
+          },
+          "logRecords": [{
+            "timeUnixNano": "1",
+            "body": {"stringValue": "test"}
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}, "scope":{"attributes":{"empty-key":""}}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"log": "test"}
     }
   },
 
@@ -926,7 +954,7 @@
             "scope": {
               "name": "invalid-scope",
               "attributes": [
-                {"key": "incomplete-kv-pair"}
+                {"key": "incomplete-kv-pair", "value": "wrong value"}
               ]
             },
             "logRecords": [
@@ -960,49 +988,6 @@
     },
     "expected_error": {
       "code": "FLB_OTEL_LOGS_ERR_SCOPELOGS_MISSING"
-    }
-  },
-
-  "multiple_records_no_timestamp_after_valid_ones": {
-    "input": {
-      "resourceLogs": [{
-        "resource": {
-          "attributes": [
-            {"key": "service.name", "value": {"stringValue": "test-service"}}
-          ]
-        },
-        "scopeLogs": [{
-          "scope": {
-            "name": "test-scope"
-          },
-          "logRecords": [
-            {
-              "timeUnixNano": "1640995200000000000",
-              "severityNumber": 9,
-              "severityText": "INFO",
-              "attributes": [
-                {"key": "user.id", "value": {"stringValue": "user123"}},
-                {"key": "action", "value": {"stringValue": "login"}}
-              ],
-              "body": {"stringValue": "User login successful"}
-            },
-            {
-              "timeUnixNano": "1640995201000000000",
-              "severityNumber": 5,
-              "severityText": "DEBUG",
-              "body": {"stringValue": "Processing user session"}
-            },
-            {
-              "severityNumber": 13,
-              "severityText": "ERROR",
-              "body": {"stringValue": "This log is missing timestamp"}
-            }
-          ]
-        }]
-      }]
-    },
-    "expected_error": {
-      "code": "FLB_OTEL_LOGS_ERR_MISSING_TIMESTAMP"
     }
   },
 
@@ -1174,6 +1159,151 @@
     "expected_error": {
       "code": "FLB_OTEL_LOGS_ERR_UNEXPECTED_LOGRECORDS_TYPE"
     }
-  }
+  },
 
+  "issue_10648_string_with_null_value": {
+    "input": {
+      "resourceLogs": [{
+        "scopeLogs": [{
+          "logRecords": [{
+            "timeUnixNano": "1722904465173450100",
+            "body": {
+              "kvlistValue": {
+                "values": [
+                  {"key": "test_key", "value": {"stringValue": null}},
+                  {"key": "normal_key", "value": {"stringValue": "normal_value"}}
+                ]
+              }
+            }
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"test_key": "", "normal_key": "normal_value"}
+    }
+  },
+  "issue_10672_empty_map_as_null": {
+    "input": {
+      "resourceLogs": [{
+        "scopeLogs": [{
+          "logRecords": [{
+            "timeUnixNano": "1722904465173450100",
+            "body": {
+              "kvlistValue": {
+                "values": [
+                  {"key": "empty_map_key", "value": {}},
+                  {"key": "normal_key", "value": {"stringValue": "normal_value"}},
+                  {"key": "missing_value_key"}
+                ]
+              }
+            }
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"empty_map_key": null, "normal_key": "normal_value", "missing_value_key": ""}
+    }
+  },
+  "arrayvalue_wrapped_map": {
+    "input": {
+      "resourceLogs": [{
+        "scopeLogs": [{
+          "logRecords": [{
+            "timeUnixNano": "1640995200000000000",
+            "body": {
+              "kvlistValue": {
+                "values": [{
+                  "key": "a",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [{
+                        "key": "d",
+                        "value": {
+                          "arrayValue": {
+                            "values": [{
+                              "kvlistValue": {
+                                "values": [{
+                                  "key": "e",
+                                  "value": {"stringValue": "g"}
+                                }]
+                              }
+                            }]
+                          }
+                        }
+                      }]
+                    }
+                  }
+                }]
+              }
+            }
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"a":{"d":[{"e":"g"}]}}
+    }
+  },
+  "resource_attribute_intvalue_string": {
+    "input": {
+      "resourceLogs": [{
+        "resource": {
+          "attributes": [
+            {"key": "resourceVersion", "value": {"intValue": "1"}}
+          ]
+        },
+        "scopeLogs": [{
+          "logRecords": [{
+            "timeUnixNano": "1640995200000000000",
+            "body": {"stringValue": "test log"}
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{"attributes":{"resourceVersion":1}}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"log": "test log"}
+    }
+  },
+  "unwrapped_plain_map": {
+    "input": {
+      "resourceLogs": [{
+        "scopeLogs": [{
+          "logRecords": [{
+            "timeUnixNano": "1640995200000000000",
+            "body": {
+              "kvlistValue": {
+                "values": [{
+                  "key": "plain",
+                  "value": {
+                    "key1": {"stringValue": "v1"},
+                    "key2": {"intValue": 2}
+                  }
+                }]
+              }
+            }
+          }]
+        }]
+      }]
+    },
+    "expected": {
+      "group_metadata": {"schema":"otlp","resource_id":0,"scope_id":0},
+      "group_body": {"resource":{}},
+      "log_metadata": {"otlp":{}},
+      "log_body": {"plain": {"key1": "v1", "key2": 2}}
+    }
+  }
 }

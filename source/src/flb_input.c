@@ -1564,11 +1564,25 @@ static struct flb_input_collector *collector_create(int type,
         coll->evl = thi->evl;
     }
     else {
-        /* We need to obtain the event loop from the TLS when
-         * creating collectors for non threaded plugins running
-         * under a threaded plugin.
+        struct mk_event_loop *tls_evl;
+
+        /*
+         * Collectors for non-threaded plugins normally run on the main
+         * engine event loop. When a private helper input such as the
+         * emitter is instantiated from within a threaded input (e.g. via
+         * an input processor), the input thread stores its own event loop
+         * in TLS.  Those helper inputs must continue to use the main
+         * engine event loop to avoid spinning the input thread.
          */
-        coll->evl = flb_engine_evl_get();
+        tls_evl = flb_engine_evl_get();
+
+        if (tls_evl != NULL && tls_evl != config->evl &&
+            !(ins->p && (ins->p->flags & FLB_INPUT_PRIVATE))) {
+            coll->evl = tls_evl;
+        }
+        else {
+            coll->evl = config->evl;
+        }
     }
 
     /*
@@ -1922,7 +1936,6 @@ int flb_input_collector_destroy(struct flb_input_collector *coll)
     if (coll->type == FLB_COLLECT_TIME) {
         if (coll->fd_timer > 0) {
             mk_event_timeout_destroy(config->evl, &coll->event);
-            mk_event_closesocket(coll->fd_timer);
         }
     }
     else {
@@ -1937,7 +1950,6 @@ int flb_input_collector_destroy(struct flb_input_collector *coll)
 int flb_input_collector_pause(int coll_id, struct flb_input_instance *in)
 {
     int ret;
-    flb_pipefd_t fd;
     struct flb_input_collector *coll;
 
     coll = get_collector(coll_id, in);
@@ -1958,10 +1970,8 @@ int flb_input_collector_pause(int coll_id, struct flb_input_instance *in)
          * Note: Invalidate fd_timer first in case closing a socket
          * invokes another event.
          */
-        fd = coll->fd_timer;
         coll->fd_timer = -1;
         mk_event_timeout_destroy(coll->evl, &coll->event);
-        mk_event_closesocket(fd);
     }
     else if (coll->type & (FLB_COLLECT_FD_SERVER | FLB_COLLECT_FD_EVENT)) {
         ret = mk_event_del(coll->evl, &coll->event);

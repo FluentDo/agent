@@ -21,6 +21,7 @@
 #include <fluent-bit/flb_sds.h>
 #include <fluent-bit/flb_pack.h>
 #include <fluent-bit/flb_log_event_encoder.h>
+#include <fluent-bit/flb_time.h>
 #include <fluent-bit/flb_opentelemetry.h>
 #include <ctype.h>
 
@@ -73,13 +74,9 @@ static int process_json_payload_log_records_entry(
         result = flb_otel_utils_find_map_entry_by_key(log_records_entry, "observedTimeUnixNano", 0, FLB_TRUE);
     }
 
-    /* we need a timestamp... */
+    /* fallback to current time if both timestamp fields are missing */
     if (result == -1) {
-        if (error_status) {
-            *error_status = FLB_OTEL_LOGS_ERR_MISSING_TIMESTAMP;
-        }
-        return -FLB_OTEL_LOGS_ERR_MISSING_TIMESTAMP;
-
+        flb_time_get(&timestamp);
     }
     else {
         timestamp_object = &log_records_entry->ptr[result].val;
@@ -293,18 +290,18 @@ static int process_json_payload_log_records_entry(
         result = flb_otel_utils_json_payload_append_converted_kvlist(encoder, FLB_LOG_EVENT_METADATA, metadata_object);
     }
 
-    if (trace_id != NULL) {
-        flb_otel_utils_hex_to_id(trace_id->via.str.ptr, trace_id->via.str.size, tmp_id, 32);
+    if (trace_id != NULL && trace_id->type == MSGPACK_OBJECT_STR && trace_id->via.str.size == 32) {
+        flb_otel_utils_hex_to_id(trace_id->via.str.ptr, trace_id->via.str.size, tmp_id, 16);
         flb_log_event_encoder_append_metadata_values(encoder,
                                                         FLB_LOG_EVENT_STRING_VALUE("trace_id", 8),
-                                                        FLB_LOG_EVENT_BINARY_VALUE(tmp_id, 32));
+                                                        FLB_LOG_EVENT_BINARY_VALUE(tmp_id, 16));
     }
 
-    if (span_id != NULL) {
-        flb_otel_utils_hex_to_id(span_id->via.str.ptr, span_id->via.str.size, tmp_id, 16);
+    if (span_id != NULL && span_id->type == MSGPACK_OBJECT_STR && span_id->via.str.size == 16) {
+        flb_otel_utils_hex_to_id(span_id->via.str.ptr, span_id->via.str.size, tmp_id, 8);
         flb_log_event_encoder_append_metadata_values(encoder,
                                                         FLB_LOG_EVENT_STRING_VALUE("span_id", 7),
-                                                        FLB_LOG_EVENT_BINARY_VALUE(tmp_id, 16));
+                                                        FLB_LOG_EVENT_BINARY_VALUE(tmp_id, 8));
     }
 
     result = flb_log_event_encoder_commit_map(encoder, FLB_LOG_EVENT_METADATA);
@@ -548,6 +545,13 @@ static int process_json_payload_resource_logs_entry (struct flb_log_event_encode
             result = flb_otel_utils_json_payload_append_converted_kvlist(tmp_encoder,
                                                                          FLB_LOG_EVENT_BODY,
                                                                          resource_attr);
+            if (result < 0) {
+                if (error_status) {
+                    *error_status = FLB_OTEL_RESOURCE_INVALID_ATTRIBUTE;
+                }
+                flb_log_event_encoder_destroy(tmp_encoder);
+                return -FLB_OTEL_RESOURCE_INVALID_ATTRIBUTE;
+            }
         }
 
         /* resource dropped_attributers_count */

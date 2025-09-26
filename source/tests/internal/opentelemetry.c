@@ -22,6 +22,8 @@
 #include <fluent-bit/flb_pack.h>
 #include <fluent-bit/flb_sds.h>
 #include <fluent-bit/flb_mem.h>
+#include <fluent-bit/flb_record_accessor.h>
+#include <fluent-bit/flb_ra_key.h>
 
 // #include "../../plugins/in_opentelemetry/opentelemetry.h"
 #include <fluent-bit/flb_opentelemetry.h>
@@ -473,6 +475,27 @@ void test_json_payload_get_wrapped_value()
 
     msgpack_sbuffer_destroy(&sbuf);
     msgpack_unpacked_destroy(&up);
+
+    /* Test integer value provided as a string */
+    msgpack_sbuffer_init(&sbuf);
+    msgpack_packer_init(&pck, &sbuf, msgpack_sbuffer_write);
+
+    msgpack_pack_map(&pck, 1);
+    msgpack_pack_str(&pck, 8);
+    msgpack_pack_str_body(&pck, "intValue", 8);
+    msgpack_pack_str(&pck, 1);
+    msgpack_pack_str_body(&pck, "1", 1);
+
+    msgpack_unpacked_init(&up);
+    msgpack_unpack_next(&up, sbuf.data, sbuf.size, NULL);
+
+    ret = flb_otel_utils_json_payload_get_wrapped_value(&up.data, &val, &type);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(type == MSGPACK_OBJECT_POSITIVE_INTEGER);
+    TEST_CHECK(val->type == MSGPACK_OBJECT_STR);
+
+    msgpack_sbuffer_destroy(&sbuf);
+    msgpack_unpacked_destroy(&up);
 }
 
 #define OTEL_TEST_CASES_PATH      FLB_TESTS_DATA_PATH "/data/opentelemetry/test_cases.json"
@@ -628,12 +651,24 @@ void test_opentelemetry_cases()
                     /* Fall back to legacy format validation */
                     meta_json = get_group_metadata(enc.output_buffer, enc.output_length);
                     TEST_CHECK(strcmp(meta_json, expect_group_meta) == 0);
+                    if (strcmp(meta_json, expect_group_meta) != 0) {
+                        TEST_MSG("group metadata mismatch: expected '%s', got '%s'",
+                                 expect_group_meta, meta_json);
+                    }
 
                     body_json = get_group_body(enc.output_buffer, enc.output_length);
                     TEST_CHECK(strcmp(body_json, expect_group_body) == 0);
+                    if (strcmp(body_json, expect_group_body) != 0) {
+                        TEST_MSG("group body mismatch: expected '%s', got '%s'",
+                                 expect_group_body, body_json);
+                    }
 
                     log_json = get_log_body(enc.output_buffer, enc.output_length);
                     TEST_CHECK(strcmp(log_json, expect_log_body) == 0);
+                    if (strcmp(log_json, expect_log_body) != 0) {
+                        TEST_MSG("log body mismatch: expected '%s', got '%s'",
+                                 expect_log_body, log_json);
+                    }
                 }
                 else {
                     TEST_CHECK_(0, "extended format validation failed: %s", case_name);
@@ -693,6 +728,7 @@ void test_opentelemetry_cases()
                         exp_code, error_status,
                         flb_opentelemetry_error_to_string(error_status));
             if (error_status != exp_code) {
+
                 flb_log_event_encoder_destroy(&enc);
                 flb_free(input_json);
                 flb_free(case_name);
@@ -722,6 +758,95 @@ void test_opentelemetry_cases()
     flb_free(cases_json);
 }
 
+void test_trace_span_binary_sizes()
+{
+    int ret;
+    struct flb_log_event_encoder enc;
+    struct flb_log_event_decoder dec;
+    struct flb_log_event event;
+    int32_t record_type;
+    char *input_json;
+    int error_status = 0;
+    int found_trace_id = 0;
+    int found_span_id = 0;
+    size_t trace_id_size = 0;
+    size_t span_id_size = 0;
+    struct flb_record_accessor *ra_trace_id;
+    struct flb_record_accessor *ra_span_id;
+    struct flb_ra_value *val_trace_id;
+    struct flb_ra_value *val_span_id;
+    size_t len;
+
+    /* Test input with trace_id and span_id */
+    input_json = "{\"resourceLogs\":[{\"scopeLogs\":[{\"logRecords\":[{\"timeUnixNano\":\"1640995200000000000\",\"traceId\":\"5B8EFFF798038103D269B633813FC60C\",\"spanId\":\"EEE19B7EC3C1B174\",\"body\":{\"stringValue\":\"test\"}}]}]}]}";
+
+    ret = flb_log_event_encoder_init(&enc, FLB_LOG_EVENT_FORMAT_FLUENT_BIT_V2);
+    TEST_CHECK(ret == FLB_EVENT_ENCODER_SUCCESS);
+
+    ret = flb_opentelemetry_logs_json_to_msgpack(&enc, input_json, strlen(input_json), NULL, &error_status);
+    TEST_CHECK(ret == 0);
+
+    /* Create record accessors for trace_id and span_id */
+    ra_trace_id = flb_ra_create("$otlp['trace_id']", FLB_FALSE);
+    TEST_CHECK(ra_trace_id != NULL);
+
+    ra_span_id = flb_ra_create("$otlp['span_id']", FLB_FALSE);
+    TEST_CHECK(ra_span_id != NULL);
+
+    /* Decode the output to check binary sizes */
+    ret = flb_log_event_decoder_init(&dec, enc.output_buffer, enc.output_length);
+    TEST_CHECK(ret == FLB_EVENT_DECODER_SUCCESS);
+
+    flb_log_event_decoder_read_groups(&dec, FLB_TRUE);
+
+    while ((ret = flb_log_event_decoder_next(&dec, &event)) == FLB_EVENT_DECODER_SUCCESS) {
+        ret = flb_log_event_decoder_get_record_type(&event, &record_type);
+        TEST_CHECK(ret == 0);
+
+        if (record_type == FLB_LOG_EVENT_NORMAL) {
+            /* Use record accessor to get trace_id */
+            val_trace_id = flb_ra_get_value_object(ra_trace_id, *event.metadata);
+            if (val_trace_id != NULL) {
+                found_trace_id = 1;
+                if (val_trace_id->type == FLB_RA_BINARY) {
+                    trace_id_size = flb_sds_len(val_trace_id->val.binary);
+                    printf("Found trace_id with binary size: %zu\n", trace_id_size);
+                    /* trace_id should be 16 bytes (32 hex chars = 16 bytes) */
+                    TEST_CHECK_(trace_id_size == 16, "trace_id binary size should be 16, got %zu", trace_id_size);
+                }
+                else if (val_trace_id->type == FLB_RA_STRING) {
+                    printf("Found trace_id as string: %s\n", val_trace_id->val.string);
+                }
+                flb_ra_key_value_destroy(val_trace_id);
+            }
+
+            /* Use record accessor to get span_id */
+            val_span_id = flb_ra_get_value_object(ra_span_id, *event.metadata);
+            if (val_span_id != NULL) {
+                found_span_id = 1;
+                if (val_span_id->type == FLB_RA_BINARY) {
+                    span_id_size = flb_sds_len(val_span_id->val.binary);
+                    printf("Found span_id with binary size: %zu\n", span_id_size);
+                    /* span_id should be 8 bytes (16 hex chars = 8 bytes) */
+                    TEST_CHECK_(span_id_size == 8, "span_id binary size should be 8, got %zu", span_id_size);
+                }
+                else if (val_span_id->type == FLB_RA_STRING) {
+                    printf("Found span_id as string: %s\n", val_span_id->val.string);
+                }
+                flb_ra_key_value_destroy(val_span_id);
+            }
+        }
+    }
+
+    flb_log_event_decoder_destroy(&dec);
+    flb_log_event_encoder_destroy(&enc);
+    flb_ra_destroy(ra_trace_id);
+    flb_ra_destroy(ra_span_id);
+
+    TEST_CHECK(found_trace_id == 1);
+    TEST_CHECK(found_span_id == 1);
+}
+
 /* Test list */
 TEST_LIST = {
     { "hex_to_id", test_hex_to_id },
@@ -729,6 +854,7 @@ TEST_LIST = {
     { "find_map_entry_by_key", test_find_map_entry_by_key },
     { "json_payload_get_wrapped_value", test_json_payload_get_wrapped_value },
     { "opentelemetry_cases", test_opentelemetry_cases },
+    { "trace_span_binary_sizes", test_trace_span_binary_sizes },
     { 0 }
 };
 

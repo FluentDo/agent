@@ -21,6 +21,7 @@
 #include <fluent-bit/flb_sds.h>
 #include <fluent-bit/flb_pack.h>
 #include <fluent-bit/flb_log_event_encoder.h>
+#include <fluent-bit/flb_time.h>
 #include <fluent-bit/flb_opentelemetry.h>
 #include <fluent-otel-proto/fluent-otel.h>
 
@@ -142,6 +143,11 @@ static int otlp_pack_any_value(msgpack_packer *mp_pck,
 
     result = -2;
 
+    if (body == NULL) {
+        msgpack_pack_nil(mp_pck);
+        return 0;
+    }
+
     switch(body->value_case){
         case OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE:
             result = otel_pack_string(mp_pck, body->string_value);
@@ -169,6 +175,11 @@ static int otlp_pack_any_value(msgpack_packer *mp_pck,
 
         case OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_BYTES_VALUE:
             result = otel_pack_bytes(mp_pck, body->bytes_value);
+            break;
+
+        case OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE__NOT_SET:
+            /* treat an unset value as null */
+            result = msgpack_pack_nil(mp_pck);
             break;
 
         default:
@@ -207,10 +218,12 @@ static int otel_pack_v1_metadata(struct flb_opentelemetry *ctx,
 
     flb_mp_map_header_init(&mh, mp_pck);
 
-    flb_mp_map_header_append(&mh);
-    msgpack_pack_str(mp_pck, 18);
-    msgpack_pack_str_body(mp_pck, "observed_timestamp", 18);
-    msgpack_pack_uint64(mp_pck, log_record->observed_time_unix_nano);
+    if (log_record->observed_time_unix_nano != 0) {
+        flb_mp_map_header_append(&mh);
+        msgpack_pack_str(mp_pck, 18);
+        msgpack_pack_str_body(mp_pck, "observed_timestamp", 18);
+        msgpack_pack_uint64(mp_pck, log_record->observed_time_unix_nano);
+    }
 
     /* Value of 0 indicates unknown or missing timestamp. */
     if (log_record->time_unix_nano != 0) {
@@ -504,8 +517,13 @@ static int binary_payload_to_msgpack(struct flb_opentelemetry *ctx,
                         flb_time_from_uint64(&tm, log_records[log_record_index]->time_unix_nano);
                         ret = flb_log_event_encoder_set_timestamp(encoder, &tm);
                     }
+                    else if (log_records[log_record_index]->observed_time_unix_nano > 0) {
+                        flb_time_from_uint64(&tm, log_records[log_record_index]->observed_time_unix_nano);
+                        ret = flb_log_event_encoder_set_timestamp(encoder, &tm);
+                    }
                     else {
-                        ret = flb_log_event_encoder_set_current_timestamp(encoder);
+                        flb_time_get(&tm);
+                        ret = flb_log_event_encoder_set_timestamp(encoder, &tm);
                     }
                 }
 
@@ -537,6 +555,7 @@ static int binary_payload_to_msgpack(struct flb_opentelemetry *ctx,
                     }
                     else {
                         if (ctx->logs_body_key == NULL &&
+                            log_records[log_record_index]->body != NULL &&
                             log_records[log_record_index]->body->value_case ==
                             OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_KVLIST_VALUE) {
                             ret = flb_log_event_encoder_set_body_from_raw_msgpack(
