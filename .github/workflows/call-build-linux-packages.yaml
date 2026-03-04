@@ -85,7 +85,7 @@ jobs:
       # Must be removed on Namespace runners
       - name: Set up QEMU
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: ${{ !contains( runner.name, 'nsc-' ) }}
