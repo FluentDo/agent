@@ -93,7 +93,7 @@ jobs:
       # Must be removed on Namespace runners
       - name: Set up QEMU
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: ${{ !contains( runner.name, 'nsc-' ) }}
@@ -164,7 +164,7 @@ jobs:
         shell: bash
 
       - name: Upload ${{ matrix.target }} digest
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}-digests-${{ steps.output-name.outputs.sanitised_image_base }}-${{ matrix.platform }}
           path: digests/*
@@ -248,7 +248,7 @@ jobs:
         shell: bash
 
       - name: Download digests for all architectures of ${{ steps.output-name.outputs.sanitised_image_base }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: production-digests-${{ steps.output-name.outputs.sanitised_image_base }}-*
           path: digests/
