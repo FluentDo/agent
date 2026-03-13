@@ -45,7 +45,7 @@ jobs:
           #       SANITIZE_THREAD=On
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
@@ -64,7 +64,7 @@ jobs:
         shell: bash
 
       - name: Install cmake
-        uses: jwlawson/actions-setup-cmake@v2
+        uses: jwlawson/actions-setup-cmake@3a6cbe35ba64df7ca70c51365c4aff65db9a9037 # v2.1.1
         with:
           cmake-version: "3.31.6"
 
@@ -92,7 +92,7 @@ jobs:
         shell: bash
 
       - name: Configure tests
-        uses: threeal/cmake-action@v2.1.0
+        uses: threeal/cmake-action@725d1314ccf9ea922805d7e3f9d9bcbca892b406 # v2.1.0
         with:
           source-dir: source
           build-dir: source/build
@@ -149,7 +149,7 @@ jobs:
         # Failures here should not fail the whole job
         continue-on-error: true
         if: matrix.config.name == 'coverage'
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@5cbfd81b66ca5d10c19b062c04de0199c215fb6e # v2.3.7
         with:
           file: source/build/cobertura.xml
           format: cobertura
@@ -157,7 +157,7 @@ jobs:
 
       - name: Upload coverage reports
         if: matrix.config.name == 'coverage'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-reports
           path: |
@@ -188,7 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@release/v1
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           # Add any jobs that can be skipped here to avoid failure of this job
           # allowed-skips: build-linux,build-windows

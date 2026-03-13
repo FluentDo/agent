@@ -33,7 +33,7 @@ jobs:
       branch: ${{ steps.detect-branch.outputs.branch || 'main' }}
       prefix: ${{ steps.detect-prefix.outputs.prefix || 'v*' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: 25.10 run
         if: github.event_name == 'schedule' && github.event.schedule=='0 10 * * 1'
@@ -98,7 +98,7 @@ jobs:
       tag_name: ${{ steps.tag_name.outputs.tag_name }}
     steps:
       - name: Authenticate with GCP
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
           service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
@@ -107,12 +107,12 @@ jobs:
         name: Get secrets from GCP Secret Manager
         # This step retrieves secrets from GCP Secret Manager and sets them as outputs
         # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
-        uses: "google-github-actions/get-secretmanager-secrets@v3"
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
         with:
           secrets: |-
             github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ needs.find-last-good.outputs.sha }}
           # The tag must be pushed using a PAT to ensure workflows then run.
