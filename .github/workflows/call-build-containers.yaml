@@ -74,7 +74,7 @@ jobs:
     runs-on: ${{ (contains(matrix.platform, 'arm') && inputs.arm-runner-label) || inputs.amd-runner-label }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: telemetryforge/agent
           ref: ${{ inputs.ref }}
@@ -93,20 +93,20 @@ jobs:
       # Must be removed on Namespace runners
       - name: Set up QEMU
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Log in to docker.io for authorised pulls
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ inputs.dockerhub-username }}
           password: ${{ secrets.dockerhub-token }}
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -115,7 +115,7 @@ jobs:
       # Used to set default labels and the like to overwrite base image ones
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           labels: |
             build-date={{date 'YYYYMMDD-HHmmss'}}
@@ -132,7 +132,7 @@ jobs:
 
       - name: Build and push by digest the standard ${{ matrix.target }} image
         id: production
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           # Use path context rather than Git context as we want local files
           context: .
@@ -164,7 +164,7 @@ jobs:
         shell: bash
 
       - name: Upload ${{ matrix.target }} digest
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.target }}-digests-${{ steps.output-name.outputs.sanitised_image_base }}-${{ matrix.platform }}
           path: digests/*
@@ -175,7 +175,7 @@ jobs:
         # Only for AMD64 as we only run tests on that architecture
         if: matrix.platform == 'amd64'
         id: meta-test
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ inputs.image-base }}/test
           flavor: |
@@ -193,7 +193,7 @@ jobs:
       - name: Build and push the test image
         if: matrix.platform == 'amd64'
         id: test
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: ${{ inputs.definition }}
@@ -225,7 +225,7 @@ jobs:
     steps:
       - name: Extract metadata from Github
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ inputs.image-base }}
           flavor: |
@@ -248,7 +248,7 @@ jobs:
         shell: bash
 
       - name: Download digests for all architectures of ${{ steps.output-name.outputs.sanitised_image_base }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: production-digests-${{ steps.output-name.outputs.sanitised_image_base }}-*
           path: digests/
@@ -259,10 +259,10 @@ jobs:
         shell: bash
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -295,14 +295,14 @@ jobs:
       IMAGE: ${{ needs.build-container-image-manifest.outputs.tag }}
     steps:
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4.0.0
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Sign image with a key if defined
         if: ${{ env.COSIGN_PRIVATE_KEY }}
