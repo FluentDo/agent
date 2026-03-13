@@ -13,16 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     name: PR - Hadolint
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # Ignores do not work: https://github.com/reviewdog/action-hadolint/issues/35 is resolved
-      - uses: reviewdog/action-hadolint@v1
+      - uses: reviewdog/action-hadolint@921946a7ebaaf08ac72607bad67209f4e52b5407 # v1.50.5
 
   shellcheck-pr:
     runs-on: ubuntu-latest
     name: PR - Shellcheck
     steps:
-      - uses: actions/checkout@v6
-      - uses: reviewdog/action-shellcheck@v1.32.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: reviewdog/action-shellcheck@4c07458293ac342d477251099501a718ae5ef86e # v1.32.0
         with:
           reporter: github-pr-review
           fail_level: error
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     name: PR - Actionlint
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - run: |
           echo "::add-matcher::.github/actionlint-matcher.json"
           bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
@@ -51,7 +51,7 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-      - uses: amannn/action-semantic-pull-request@v6
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -85,3 +85,17 @@ jobs:
             dependencies
             ci
             automerge
+
+  actions-pin-sha:
+    runs-on: ubuntu-latest
+    name: PR - Actions Pin SHA
+    permissions:
+      contents: read
+      # For ReviewDog to post comments to the PR
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: suzuki-shunsuke/pinact-action@1081f5ad49ac904b7d977784f338145150a32112  # v1.4.0
+        with:
+          skip_push: "true"
+          review: "true"

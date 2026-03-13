@@ -12,7 +12,7 @@ runs:
   using: composite
   steps:
     - name: Format the matrix string
-      uses: frabert/replace-string-action@v2.5
+      uses: frabert/replace-string-action@9c9aeb483eab07adb9d0be75b5212cc0bcef0d4b # v2.5.1
       id: formatted_distro
       with:
         pattern: '(.*)\/(.*)$'
