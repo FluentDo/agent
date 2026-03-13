@@ -69,6 +69,7 @@ jobs:
       - name: Install BATS
         uses: bats-core/bats-action@4.0.0
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           assert-install: false
           detik-install: false
           file-install: false
