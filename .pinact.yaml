@@ -6,8 +6,5 @@ version: 3
 #   - pattern: */action.yaml
 
 # separator: "  # "
-ignore_actions:
-  - name: telemetryforge/documentation/\.github/workflows/call-add-mapping-version\.yaml
-    ref: main
 # - name: actions/.*
 #   ref: main

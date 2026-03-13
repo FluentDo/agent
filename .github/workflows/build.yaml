@@ -479,7 +479,7 @@ jobs:
       - release
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     name: Update documentation on release
-    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@main
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@bb48bab1fff36e363db59c0854c64fdb8a286c1c
     with:
       agent-version: ${{ needs.get-meta.outputs.version }}
       oss-version: ${{ needs.get-meta.outputs.oss-version }}
