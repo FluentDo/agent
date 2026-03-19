@@ -2,5 +2,8 @@
 # pinact - https://github.com/suzuki-shunsuke/pinact
 version: 3
 files:
-  # Ignore all files in vendored and other source code
-  - pattern: source/**
+  - pattern: .github/workflows/*.yml
+  - pattern: .github/workflows/*.yaml
+  - pattern: .github/actions/*/action.yml
+  - pattern: .github/actions/*/action.yaml
+  # Ignore everything else, e.g. actions in vendored libs under source
