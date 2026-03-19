@@ -50,8 +50,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TELEMETRY_FORGE_AGENT_TAG: ${{ inputs.image-tag }}
+      TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.image-tag }}
       # Support legacy tag variable for backwards compatibility
       FLUENTDO_AGENT_TAG: ${{ inputs.image-tag }}
+      FLUENTDO_AGENT_VERSION: ${{ inputs.image-tag }}
     permissions:
       packages: read
     steps:
