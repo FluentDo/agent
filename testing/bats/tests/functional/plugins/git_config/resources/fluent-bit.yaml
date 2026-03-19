@@ -1,5 +1,6 @@
 service:
   flush: 1
+  grace: 1
   log_level: info
 
 pipeline:
