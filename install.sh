@@ -368,12 +368,33 @@ fetch_available_versions() {
             log_debug "Fetching page $page_count"
         fi
 
-        local versions_response
-        versions_response=$(curl -s -L "$url" 2>/dev/null || echo "")
+        local versions_response=""
+        local fetch_attempts=0
+        local max_fetch_attempts=5
+        local fetch_delay=10
+
+        while [ $fetch_attempts -lt $max_fetch_attempts ]; do
+            fetch_attempts=$((fetch_attempts + 1))
+            versions_response=$(curl -s -L "$url" 2>/dev/null || echo "")
+
+            if [ -z "$versions_response" ]; then
+                log_debug "curl returned empty response (attempt $fetch_attempts/$max_fetch_attempts)"
+            elif echo "$versions_response" | grep -qi "just a moment"; then
+                # Cloudflare or similar CDN challenge page indicating not ready yet
+                log_debug "Received loading/challenge page (attempt $fetch_attempts/$max_fetch_attempts)"
+                versions_response=""
+            else
+                break
+            fi
+
+            if [ $fetch_attempts -lt $max_fetch_attempts ]; then
+                log_warning "Server not ready, retrying in ${fetch_delay}s (attempt $fetch_attempts/$max_fetch_attempts)..."
+                sleep "$fetch_delay"
+            fi
+        done
 
         if [ -z "$versions_response" ]; then
-            log_error "Failed to fetch versions from $url"
-            log_debug "curl returned empty response"
+            log_error "Failed to fetch versions from $url after $max_fetch_attempts attempts"
             return 1
         fi
 
