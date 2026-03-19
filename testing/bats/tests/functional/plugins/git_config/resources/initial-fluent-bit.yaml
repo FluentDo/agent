@@ -1,10 +1,13 @@
 service:
   flush: 1
+  grace: 1
   log_level: debug
 
 customs:
   - name: git_config
     repo: https://github.com/telemetryforge/agent.git
+    # We may need to adjust this per-PR appropriately to ensure we are testing the correct branch/PR
     ref: main
     path: testing/bats/tests/functional/plugins/git_config/resources/fluent-bit.yaml
+    # Fast polling
     poll_interval: 1

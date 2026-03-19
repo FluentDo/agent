@@ -32,6 +32,7 @@ teardown() {
     # Check we are correctly polling the repository and not encountering errors extracting the config file
     assert_output --partial 'polling repository https://github.com/telemetryforge/agent.git'
     refute_output --partial 'failed to extract config file'
+    assert_output --partial 'new commit detected'
     # The output should contain the message about switching to the updated configuration after the first poll interval
     assert_output --partial 'Switched to updated configuration'
 }
