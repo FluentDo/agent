@@ -50,10 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TELEMETRY_FORGE_AGENT_TAG: ${{ inputs.image-tag }}
-      TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.image-tag }}
       # Support legacy tag variable for backwards compatibility
       FLUENTDO_AGENT_TAG: ${{ inputs.image-tag }}
-      FLUENTDO_AGENT_VERSION: ${{ inputs.image-tag }}
     permissions:
       packages: read
     steps:
@@ -86,6 +84,13 @@ jobs:
 
       - name: Install Rush for parallelism
         run: curl -sSfL https://github.com/shenwei356/rush/releases/download/v0.7.0/rush_linux_amd64.tar.gz | sudo tar xzf - -C /usr/local/bin
+        shell: bash
+
+      - name: Ensure we use the right version during a release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "TELEMETRY_FORGE_AGENT_VERSION=${{ inputs.image-tag }}" >> $GITHUB_ENV
+          echo "FLUENTDO_AGENT_VERSION=${{ inputs.image-tag }}" >> $GITHUB_ENV
         shell: bash
 
       - name: Run container integration tests
