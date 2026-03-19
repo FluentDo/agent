@@ -44,7 +44,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        almalinux:9 /bin/sh -c 'yum install -y epel-release && \
+        almalinux:9 /bin/sh -c 'yum install -yq epel-release && \
             /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
@@ -56,7 +56,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        almalinux:10 /bin/sh -c 'yum install -y epel-release && \
+        almalinux:10 /bin/sh -c 'yum install -yq epel-release && \
             /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
@@ -68,7 +68,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        ubuntu:22.04 /bin/sh -c 'apt-get update && apt-get install -y curl && /install.sh --debug'
+        ubuntu:22.04 /bin/sh -c 'apt-get update -qq && apt-get install -qqy curl && /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
     refute_output --partial '[ERROR]'
@@ -79,7 +79,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        ubuntu:24.04 /bin/sh -c 'apt-get update && apt-get install -y curl && /install.sh --debug'
+        ubuntu:24.04 /bin/sh -c 'apt-get update -qq && apt-get install -qqy curl && /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
     refute_output --partial '[ERROR]'
@@ -90,7 +90,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        debian:bookworm /bin/sh -c 'apt-get update && apt-get install -y curl && /install.sh --debug'
+        debian:bookworm /bin/sh -c 'apt-get update -qq && apt-get install -qqy curl && /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
     refute_output --partial '[ERROR]'
@@ -101,7 +101,7 @@ setupFile() {
     local install_script="${repo_root}/install.sh"
     assert_file_exist "$install_script"
     run ${CONTAINER_RUNTIME:-docker} run --rm -t -v "${install_script}:/install.sh:ro" \
-        debian:trixie /bin/sh -c 'apt-get update && apt-get install -y curl && /install.sh --debug'
+        debian:trixie /bin/sh -c 'apt-get update -qq && apt-get install -qqy curl && /install.sh --debug'
     assert_success
     assert_output --partial 'Telemetry Forge Agent installation completed successfully!'
     refute_output --partial '[ERROR]'
