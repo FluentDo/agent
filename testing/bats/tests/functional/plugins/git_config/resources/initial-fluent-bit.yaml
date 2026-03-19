@@ -1,0 +1,10 @@
+service:
+  flush: 1
+  log_level: debug
+
+customs:
+  - name: git_config
+    repo: https://github.com/telemetryforge/agent.git
+    ref: main
+    path: testing/bats/tests/functional/plugins/git_config/resources/fluent-bit.yaml
+    poll_interval: 1
