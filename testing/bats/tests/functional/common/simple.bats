@@ -24,13 +24,13 @@ function teardown() {
     [[ "$TELEMETRY_FORGE_AGENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
-@test "verify version" {
+@test "verify reporting $TELEMETRY_FORGE_AGENT_VERSION version" {
     run "$FLUENT_BIT_BINARY" --version
     [ "$status" -eq 0 ]
     [[ "$output" =~ Telemetry\ Forge\ Agent\ v$TELEMETRY_FORGE_AGENT_VERSION ]]
 }
 
-@test "verify help" {
+@test "verify help works for $FLUENT_BIT_BINARY" {
     run "$FLUENT_BIT_BINARY" --help
     [ "$status" -eq 0 ]
 }
