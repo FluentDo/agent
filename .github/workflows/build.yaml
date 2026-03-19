@@ -378,6 +378,18 @@ jobs:
           registry-password: ${{ secrets.GITHUB_TOKEN }}
           output-file: image-debian-sbom.spdx
 
+      - name: Generate JSON schema from container
+        timeout-minutes: 1
+        # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
+        continue-on-error: true
+        run: |
+          echo "Generating JSON schema from container image"
+          docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
+          docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
+          # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
+          cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
+        shell: bash
+
       - name: Save image as tarball
         run: |
           mkdir -p output
