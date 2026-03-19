@@ -375,7 +375,7 @@ fetch_available_versions() {
 
         while [ $fetch_attempts -lt $max_fetch_attempts ]; do
             fetch_attempts=$((fetch_attempts + 1))
-            versions_response=$(curl -s -L "$url" 2>/dev/null || echo "")
+            versions_response=$(curl --max-time 60 -s -L "$url" 2>/dev/null || echo "")
 
             if [ -z "$versions_response" ]; then
                 log_debug "curl returned empty response (attempt $fetch_attempts/$max_fetch_attempts)"
