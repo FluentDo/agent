@@ -78,6 +78,8 @@ echo "INFO: running test container 'bats/test/$DISTRO'"
 	-v "$DOWNLOAD_DIR:/downloads:ro" \
 	-e FLUENT_BIT_BINARY="$FLUENT_BIT_BINARY" \
 	-e TELEMETRY_FORGE_AGENT_PACKAGE_INSTALLED=true \
+	-e TELEMETRY_FORGE_AGENT_VERSION="$TELEMETRY_FORGE_AGENT_VERSION" \
+	-e TELEMETRY_FORGE_AGENT_URL="$TELEMETRY_FORGE_AGENT_URL" \
 	"bats/test/$DISTRO"
 
 echo "INFO: All tests complete"
