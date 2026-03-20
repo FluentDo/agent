@@ -158,6 +158,8 @@ jobs:
         env:
           BASE_IMAGE: ${{ matrix.config.image }}
           DISTRO: ${{ matrix.config.distro }}
+          # See https://github.com/orgs/community/discussions/25191
+          GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
   # Test packages installed on the actual target OS
   # For now we just use the ephemeral runners
@@ -249,6 +251,9 @@ jobs:
       - name: Run integration tests
         run: ./testing/bats/run-package-integration-tests.sh
         shell: bash
+        env:
+          # See https://github.com/orgs/community/discussions/25191
+          GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Debug linux binary
         if: runner.os == 'Linux'

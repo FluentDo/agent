@@ -7,7 +7,7 @@ customs:
   - name: git_config
     repo: https://github.com/telemetryforge/agent.git
     # We may need to adjust this per-PR appropriately to ensure we are testing the correct branch/PR
-    ref: main
+    ref: ${GIT_SHA}
     path: testing/bats/tests/functional/plugins/git_config/resources/fluent-bit.yaml
-    # Fast polling
-    poll_interval: 1
+    # Do not poll too fast as we still need to apply the commit between polls
+    poll_interval: 10

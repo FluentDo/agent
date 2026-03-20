@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-ensure_variables_set BATS_SUPPORT_ROOT BATS_ASSERT_ROOT BATS_FILE_ROOT FLUENT_BIT_BINARY
+ensure_variables_set BATS_SUPPORT_ROOT BATS_ASSERT_ROOT BATS_FILE_ROOT FLUENT_BIT_BINARY GIT_SHA
 
 load "$BATS_SUPPORT_ROOT/load.bash"
 load "$BATS_ASSERT_ROOT/load.bash"
@@ -29,6 +29,7 @@ teardown() {
 
     run "$FLUENT_BIT_BINARY" -c "$BATS_FILE_ROOT/resources/initial-fluent-bit.yaml"
     assert_success
+    assert_output --partial 'no existing git config found'
     # Check we are correctly polling the repository and not encountering errors extracting the config file
     assert_output --partial 'polling repository https://github.com/telemetryforge/agent.git'
     refute_output --partial 'failed to extract config file'
