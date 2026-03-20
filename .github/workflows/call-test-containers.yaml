@@ -86,6 +86,13 @@ jobs:
         run: curl -sSfL https://github.com/shenwei356/rush/releases/download/v0.7.0/rush_linux_amd64.tar.gz | sudo tar xzf - -C /usr/local/bin
         shell: bash
 
+      - name: Ensure we use the right version during a release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "TELEMETRY_FORGE_AGENT_VERSION=${{ inputs.image-tag }}" >> $GITHUB_ENV
+          echo "FLUENTDO_AGENT_VERSION=${{ inputs.image-tag }}" >> $GITHUB_ENV
+        shell: bash
+
       - name: Run container integration tests
         run: ./testing/bats/run-container-integration-tests.sh
         shell: bash
