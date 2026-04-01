@@ -36,6 +36,9 @@ env:
   TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.version }}
   # Support legacy version variable for backwards compatibility
   FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
+
+permissions: read-all
+
 jobs:
   # This job converts the JSON build-matrix coming in to a matrix of test jobs.
   # We convert using the following rules:
@@ -45,6 +48,7 @@ jobs:
   call-test-packages-get-meta:
     name: Get metadata for testing
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       linux-test-targets: ${{ steps.get_matrix.outputs.linux_test_targets }}
     steps:

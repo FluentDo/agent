@@ -13,6 +13,8 @@ on:
                 default: true
                 type: boolean
 
+permissions: read-all
+
 jobs:
     lts-branch-updates:
         name: Update ${{ matrix.branch }} with main changes

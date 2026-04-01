@@ -16,6 +16,9 @@ on:
         required: false
         type: string
         default: ""
+
+permissions: read-all
+
 jobs:
   call-build-windows-package:
     runs-on: windows-2025

@@ -8,6 +8,8 @@ on:
       - reopened
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   hadolint-pr:
     runs-on: ubuntu-latest

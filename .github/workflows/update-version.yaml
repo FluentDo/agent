@@ -20,6 +20,9 @@ on:
                 required: false
                 default: true
                 type: boolean
+
+permissions: read-all
+
 jobs:
     update-version:
         name: Update version

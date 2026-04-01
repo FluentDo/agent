@@ -24,10 +24,16 @@ on:
       github-token:
         description: Token to use to pull images from GitHub Container Registry.
         required: true
+
+permissions: read-all
+
 jobs:
   test-containers:
     name: Test K8S version ${{ inputs.kind-version }} with ${{ inputs.image }}:${{ inputs.image-tag }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       KIND_VERSION: ${{ inputs.kind-version }}
       TELEMETRY_FORGE_AGENT_IMAGE: ${{ inputs.image }}

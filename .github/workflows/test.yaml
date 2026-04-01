@@ -16,6 +16,9 @@ on:
         required: false
         type: string
         default: main
+
+permissions: read-all
+
 jobs:
   get-meta:
     name: Get meta information required
@@ -47,6 +50,9 @@ jobs:
   test-containers:
     name: Run container tests
     uses: ./.github/workflows/call-test-containers.yaml
+    permissions:
+      contents: read
+      packages: read
     needs:
       - get-meta
     with:

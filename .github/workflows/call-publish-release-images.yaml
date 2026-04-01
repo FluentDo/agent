@@ -12,6 +12,9 @@ on:
 env:
     UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
     DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
+
+permissions: read-all
+
 jobs:
     promote-ghcr-images:
         name: Promote container images to top-level ghcr.io registries

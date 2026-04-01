@@ -22,6 +22,9 @@ on:
         required: false
         default: true
         type: boolean
+
+permissions: read-all
+
 jobs:
   find-last-good:
     runs-on: ubuntu-latest

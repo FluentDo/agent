@@ -51,6 +51,9 @@ on:
       dockerhub-token:
         description: The Dockerhub token to use for authenticated pulls (not pushes).
         required: false
+
+permissions: read-all
+
 jobs:
   build-packages:
     name: agent - ${{ matrix.distro }} package build and upload

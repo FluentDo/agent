@@ -16,6 +16,9 @@ on:
                 required: false
                 type: string
                 default: ""
+
+permissions: read-all
+
 jobs:
     call-build-macos-package:
         name: Building ${{ matrix.config.name }} package

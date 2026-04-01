@@ -20,6 +20,9 @@ on:
       github-token:
         description: Token to use to pull images from GitHub Container Registry.
         required: true
+
+permissions: read-all
+
 jobs:
   get-meta:
     name: Get meta information required
@@ -209,6 +212,9 @@ jobs:
   test-kubernetes:
     name: Run container tests for ${{ inputs.image }}:${{ inputs.image-tag }} on K8S version ${{ matrix.kind-version }}
     uses: ./.github/workflows/call-test-containers-k8s.yaml
+    permissions:
+      contents: read
+      packages: read
     needs:
       - get-meta
     with:

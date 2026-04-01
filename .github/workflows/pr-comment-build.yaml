@@ -16,6 +16,9 @@ name: Trigger build on PR comment
 # If no platform is specified then nothing is done
 on:
     issue_comment:
+
+permissions: read-all
+
 jobs:
     pr-build-comment:
         name: Build on PR comment
@@ -23,6 +26,7 @@ jobs:
         # Trigger only if /build is present in the comment body
         if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/build')}}
         runs-on: ubuntu-latest
+        permissions: {}
         outputs:
             pr-number: ${{ github.event.issue.number }}
             # Builds should be run (they may fail)
@@ -143,6 +147,8 @@ jobs:
             - pr-build-get-metadata
         if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-windows == 'true'
         uses: ./.github/workflows/call-build-windows-packages.yaml
+        permissions:
+            contents: read
         with:
             version: ${{ needs.pr-build-get-metadata.outputs.version }}
             ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -154,6 +160,8 @@ jobs:
             - pr-build-get-metadata
         if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-macos == 'true'
         uses: ./.github/workflows/call-build-macos-packages.yaml
+        permissions:
+            contents: read
         with:
             version: ${{ needs.pr-build-get-metadata.outputs.version }}
             ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -165,6 +173,9 @@ jobs:
             - pr-build-get-metadata
         if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-linux == 'true'
         uses: ./.github/workflows/call-build-linux-packages.yaml
+        permissions:
+            contents: read
+            packages: read
         with:
             version: ${{ needs.pr-build-get-metadata.outputs.version }}
             ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge

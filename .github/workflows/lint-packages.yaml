@@ -11,10 +11,15 @@ on:
       - 'source/packaging/distros/ubuntu/**'
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   build-packages-for-ubuntu:
     name: Building test package for Ubuntu
     uses: ./.github/workflows/call-build-linux-packages.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       version: '99.9.9'
       ref: ${{ github.ref }}
@@ -26,6 +31,8 @@ jobs:
     needs:
       - build-packages-for-ubuntu
     name: PR - Lintian (Package changes)
+    permissions:
+      contents: read
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0

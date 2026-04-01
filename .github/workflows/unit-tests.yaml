@@ -19,12 +19,16 @@ on:
         type: string
         default: "main"
 
+permissions: read-all
+
 jobs:
   linux-unit-tests:
     name: Run unit tests for ${{ matrix.config.name }}
     # 4 vCPU, 8GB RAM
     runs-on: namespace-profile-ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

@@ -55,6 +55,8 @@ on:
         description: Just the container version (tag)
         value: ${{ jobs.build-container-image-manifest.outputs.version }}
 
+permissions: read-all
+
 jobs:
   # Taken from https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
   # We split this out to make it easier to restart just one of them if it fails and do all in parallel
