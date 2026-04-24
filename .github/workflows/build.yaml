@@ -1,6 +1,12 @@
 name: Build and test
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: exercises the full release path (including permission checks) but creates a draft release instead of publishing. Use to verify no regressions without needing a real tag push.'
+        type: boolean
+        default: false
+        required: false
   pull_request:
     types:
       - opened
@@ -440,11 +446,12 @@ jobs:
         shell: bash
 
       - name: Create release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        # This may fail for workflow_dispatch if the release already exists
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.dry_run == true) }}
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           append_body: true
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
           body: |
             Telemetry Forge Agent release for ${{ github.ref_name }} version
 
@@ -468,7 +475,7 @@ jobs:
             output/package-windows-*
           fail_on_unmatched_files: false
           generate_release_notes: true
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('dry-run-{0}', github.run_id) }}
           # Ensure we create from the appropriate ref for non-latest builds
           # Use the commit SHA to ensure we create from the exact commit the tag points to
           target_commitish: ${{ github.sha }}
