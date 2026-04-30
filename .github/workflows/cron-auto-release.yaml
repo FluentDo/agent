@@ -3,6 +3,8 @@ on:
   schedule:
     # 25.10 releases
     - cron: "0 10 * * 1"
+    # 26.4 releases
+    - cron: "0 14 * * 1"
     # Latest releases
     - cron: "0 10 * * 2"
   workflow_dispatch:
@@ -52,6 +54,13 @@ jobs:
         run: |
           echo "BRANCH=release/25.10-lts" >> $GITHUB_ENV
           echo "TAG_PREFIX=v25.10*" >> $GITHUB_ENV
+        shell: bash
+
+      - name: 26.4 run
+        if: github.event_name == 'schedule' && github.event.schedule=='0 14 * * 1'
+        run: |
+          echo "BRANCH=release/26.4-lts" >> $GITHUB_ENV
+          echo "TAG_PREFIX=v26.4*" >> $GITHUB_ENV
         shell: bash
 
       - name: main run
