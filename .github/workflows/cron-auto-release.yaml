@@ -22,6 +22,13 @@ on:
         required: false
         default: true
         type: boolean
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
 jobs:
   find-last-good:
     runs-on: ubuntu-latest
@@ -33,6 +40,11 @@ jobs:
       branch: ${{ steps.detect-branch.outputs.branch || 'main' }}
       prefix: ${{ steps.detect-prefix.outputs.prefix || 'v*' }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: 25.10 run
@@ -97,6 +109,11 @@ jobs:
     outputs:
       tag_name: ${{ steps.tag_name.outputs.tag_name }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Authenticate with GCP
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:

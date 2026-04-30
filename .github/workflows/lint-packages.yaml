@@ -4,19 +4,23 @@ on:
     paths:
       - .github/workflows/lint-packages.yaml
       # Run for any CMake or packaging changes
-      - 'source/cmake/**'
-      - 'source/cpack/**'
-      - 'source/init/**'
-      - 'source/**/CMakeLists.txt'
-      - 'source/packaging/distros/ubuntu/**'
+      - "source/cmake/**"
+      - "source/cpack/**"
+      - "source/init/**"
+      - "source/**/CMakeLists.txt"
+      - "source/packaging/distros/ubuntu/**"
   workflow_dispatch:
+
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
 jobs:
   build-packages-for-ubuntu:
     name: Building test package for Ubuntu
     uses: ./.github/workflows/call-build-linux-packages.yaml
     with:
-      version: '99.9.9'
+      version: "99.9.9"
       ref: ${{ github.ref }}
       target-matrix: '["ubuntu/24.04"]'
       amd-runner-label: ubuntu-latest
@@ -27,6 +31,11 @@ jobs:
       - build-packages-for-ubuntu
     name: PR - Lintian (Package changes)
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout for config file
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
