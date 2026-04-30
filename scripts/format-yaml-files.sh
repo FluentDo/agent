@@ -37,6 +37,7 @@ if [[ -n $(git status --porcelain) ]]; then
     echo "The following files were modified after formatting:"
     git status --porcelain
     echo "Please review the changes and commit them."
+    exit 1
 else
     echo "All yaml files are properly formatted."
 fi
