@@ -289,7 +289,9 @@ jobs:
     permissions:
       packages: read
       actions: read
-      contents: write
+      contents: read
+      # We no longer need write permissions as we use a PAT due to https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+      # contents: write
       id-token: write
     env:
       UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
@@ -439,12 +441,23 @@ jobs:
           fi
         shell: bash
 
+      - id: get-secrets-release
+        if: github.ref_type == 'tag'
+        name: Get secrets from GCP Secret Manager for release creation
+        # We need a custom PAT for creating a release on an older commit SHA
+        # https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+        with:
+          secrets: |-
+            github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
+
       - name: Create release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: github.ref_type == 'tag'
         # This may fail for workflow_dispatch if the release already exists
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           append_body: true
+          token: ${{ steps.get-secrets-release.outputs.github-pat }}
           body: |
             Telemetry Forge Agent release for ${{ github.ref_name }} version
 
