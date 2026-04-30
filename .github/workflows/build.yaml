@@ -20,7 +20,7 @@ env:
 # Default to least permissions and then we can add as needed for each job.
 # This is a secure by default approach and also makes it easier to reason
 # about permissions for each job since they are not implicit from the workflow
-permissions: {}
+permissions: read-all
 
 # Cancel any running jobs for PRs on a new commit
 concurrency:
