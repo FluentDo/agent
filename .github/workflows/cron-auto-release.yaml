@@ -26,6 +26,9 @@ env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
+permissions:
+  contents: read
+
 jobs:
   find-last-good:
     runs-on: ubuntu-latest

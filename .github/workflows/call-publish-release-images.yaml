@@ -15,6 +15,9 @@ env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
+permissions:
+  contents: read
+
 jobs:
   promote-ghcr-images:
     name: Promote container images to top-level ghcr.io registries

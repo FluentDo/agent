@@ -59,6 +59,9 @@ env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
+permissions:
+  contents: read
+
 jobs:
   # Taken from https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
   # We split this out to make it easier to restart just one of them if it fails and do all in parallel

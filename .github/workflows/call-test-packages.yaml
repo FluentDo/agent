@@ -39,6 +39,9 @@ env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
+permissions:
+  contents: read
+
 jobs:
   # This job converts the JSON build-matrix coming in to a matrix of test jobs.
   # We convert using the following rules:
