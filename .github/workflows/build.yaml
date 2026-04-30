@@ -18,7 +18,7 @@ env:
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
 # Default to least permissions and then we can add as needed for each job.
-# This is a secure by default approach and also makes it easier to reason 
+# This is a secure by default approach and also makes it easier to reason
 # about permissions for each job since they are not implicit from the workflow
 permissions: {}
 
@@ -276,8 +276,8 @@ jobs:
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+        with: 
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
@@ -319,7 +319,7 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
-          ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # We need full history to be able to detect branch ancestry

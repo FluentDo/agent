@@ -4,11 +4,11 @@ on:
     paths:
       - .github/workflows/lint-packages.yaml
       # Run for any CMake or packaging changes
-      - 'source/cmake/**'
-      - 'source/cpack/**'
-      - 'source/init/**'
-      - 'source/**/CMakeLists.txt'
-      - 'source/packaging/distros/ubuntu/**'
+      - "source/cmake/**"
+      - "source/cpack/**"
+      - "source/init/**"
+      - "source/**/CMakeLists.txt"
+      - "source/packaging/distros/ubuntu/**"
   workflow_dispatch:
 
 env:
@@ -20,7 +20,7 @@ jobs:
     name: Building test package for Ubuntu
     uses: ./.github/workflows/call-build-linux-packages.yaml
     with:
-      version: '99.9.9'
+      version: "99.9.9"
       ref: ${{ github.ref }}
       target-matrix: '["ubuntu/24.04"]'
       amd-runner-label: ubuntu-latest

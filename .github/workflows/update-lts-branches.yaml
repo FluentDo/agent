@@ -1,101 +1,101 @@
 name: Update LTS branches with changes from main automatically
 on:
-    push:
-        branches:
-            - main
-        paths:
-            - .github/**
-    workflow_dispatch:
-        inputs:
-            dry-run:
-                description: Dry-run the change by doing everything except creating the PR
-                required: false
-                default: true
-                type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - .github/**
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Dry-run the change by doing everything except creating the PR
+        required: false
+        default: true
+        type: boolean
 
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
 jobs:
-    lts-branch-updates:
-        name: Update ${{ matrix.branch }} with main changes
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            pull-requests: write
-            id-token: write
-        strategy:
-            matrix:
-                branch:
-                    - release/25.10-lts
-        steps:
-            - name: Harden the runner
-              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-              with:
-                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+  lts-branch-updates:
+    name: Update ${{ matrix.branch }} with main changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    strategy:
+      matrix:
+        branch:
+          - release/25.10-lts
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
-            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-              with:
-                  ref: ${{ matrix.branch }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ matrix.branch }}
 
-            - name: Get Github Actions and other CICD updates
-              run: |
-                  git fetch
-                  git checkout origin/main -- .github/
-              shell: bash
+      - name: Get Github Actions and other CICD updates
+        run: |
+          git fetch
+          git checkout origin/main -- .github/
+        shell: bash
 
-            - name: Debug
-              run: |
-                  git status
-                  git diff
-              shell: bash
+      - name: Debug
+        run: |
+          git status
+          git diff
+        shell: bash
 
-            - name: Authenticate with GCP
-              uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-              with:
-                  workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
-                  service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
-                  create_credentials_file: true
-                  export_environment_variables: true
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+          service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
+          create_credentials_file: true
+          export_environment_variables: true
 
-            - id: get-secrets
-              name: Get secrets from GCP Secret Manager
-              # This step retrieves secrets from GCP Secret Manager and sets them as outputs
-              # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
-              uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
-              with:
-                  secrets: |-
-                      github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
+      - id: get-secrets
+        name: Get secrets from GCP Secret Manager
+        # This step retrieves secrets from GCP Secret Manager and sets them as outputs
+        # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+        with:
+          secrets: |-
+            github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
 
-            - name: Create a PR with the update
-              if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.dry-run }}
-              id: cpr
-              uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
-              with:
-                  commit-message: "ci: update workflows on ${{ matrix.branch }} from main"
-                  signoff: true
-                  branch: ci_update_workflows-${{ matrix.branch }}
-                  delete-branch: true
-                  title: "ci: update workflows on ${{ matrix.branch }}"
-                  token: ${{ steps.get-secrets.outputs.github-pat }}
-                  labels: ci,automerge
-                  body: |
-                      Update workflows automatically on ${{ matrix.branch }}
+      - name: Create a PR with the update
+        if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.dry-run }}
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
+        with:
+          commit-message: "ci: update workflows on ${{ matrix.branch }} from main"
+          signoff: true
+          branch: ci_update_workflows-${{ matrix.branch }}
+          delete-branch: true
+          title: "ci: update workflows on ${{ matrix.branch }}"
+          token: ${{ steps.get-secrets.outputs.github-pat }}
+          labels: ci,automerge
+          body: |
+            Update workflows automatically on ${{ matrix.branch }}
 
-                      - Created by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-                      - Auto-generated by create-pull-request: https://github.com/peter-evans/create-pull-request
-                  draft: false
+            - Created by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Auto-generated by create-pull-request: https://github.com/peter-evans/create-pull-request
+          draft: false
 
-            - name: Check outputs
-              if: ${{ steps.cpr.outputs.pull-request-number }}
-              run: |
-                  echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
-                  echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
-              shell: bash
+      - name: Check outputs
+        if: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+          echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
+        shell: bash
 
-            - name: Enable Pull Request Automerge
-              if: ${{ steps.cpr.outputs.pull-request-number }}
-              run: gh pr merge --squash --auto "${{ steps.cpr.outputs.pull-request-number }}"
-              env:
-                  GH_TOKEN: ${{ steps.get-secrets.outputs.github-pat }}
+      - name: Enable Pull Request Automerge
+        if: ${{ steps.cpr.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto "${{ steps.cpr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ steps.get-secrets.outputs.github-pat }}
