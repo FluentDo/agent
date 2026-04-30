@@ -55,6 +55,10 @@ on:
         description: Just the container version (tag)
         value: ${{ jobs.build-container-image-manifest.outputs.version }}
 
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   # Taken from https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
   # We split this out to make it easier to restart just one of them if it fails and do all in parallel
@@ -73,6 +77,11 @@ jobs:
     name: ${{ matrix.platform }}/${{ matrix.target }} container image build
     runs-on: ${{ (contains(matrix.platform, 'arm') && inputs.arm-runner-label) || inputs.amd-runner-label }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -223,6 +232,11 @@ jobs:
       image: ${{ inputs.image-base }}
       version: ${{ steps.meta.outputs.version }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Extract metadata from Github
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -294,6 +308,11 @@ jobs:
     env:
       IMAGE: ${{ needs.build-container-image-manifest.outputs.tag }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Log in to the Container registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:

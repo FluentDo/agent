@@ -8,11 +8,19 @@ on:
       - reopened
   workflow_dispatch:
 
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   hadolint-pr:
     runs-on: ubuntu-latest
     name: PR - Hadolint
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # Ignores do not work: https://github.com/reviewdog/action-hadolint/issues/35 is resolved
       - uses: reviewdog/action-hadolint@921946a7ebaaf08ac72607bad67209f4e52b5407 # v1.50.5
@@ -21,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     name: PR - Shellcheck
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: reviewdog/action-shellcheck@4c07458293ac342d477251099501a718ae5ef86e # v1.32.0
         with:
@@ -38,6 +50,10 @@ jobs:
     runs-on: ubuntu-latest
     name: PR - Actionlint
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - run: |
           echo "::add-matcher::.github/actionlint-matcher.json"
@@ -51,6 +67,10 @@ jobs:
     permissions:
       pull-requests: read
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,6 +114,10 @@ jobs:
       # For ReviewDog to post comments to the PR
       pull-requests: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: suzuki-shunsuke/pinact-action@cf51507d80d4d6522a07348e3d58790290eaf0b6  # v2.0.0
         with:

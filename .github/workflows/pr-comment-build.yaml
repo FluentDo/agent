@@ -16,6 +16,11 @@ name: Trigger build on PR comment
 # If no platform is specified then nothing is done
 on:
     issue_comment:
+
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
     pr-build-comment:
         name: Build on PR comment
@@ -34,6 +39,10 @@ jobs:
             # Linux targets matrix to build
             linux-targets-json: ${{ steps.parse.outputs.linux_targets_json }}
         steps:
+            - name: Harden the runner
+              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+              with:
+                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
             - name: Log useful info
               run: |
                   echo "PR Number is ${{ github.event.issue.number }}"
@@ -105,6 +114,11 @@ jobs:
         outputs:
             version: ${{ steps.set-version.outputs.version }}
         steps:
+            - name: Harden the runner
+              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+              with:
+                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
             - name: Checkout code
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
@@ -172,6 +186,11 @@ jobs:
             - pr-build-linux
         runs-on: ubuntu-latest
         steps:
+            - name: Harden the runner
+              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+              with:
+                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
             - name: Post results as PR comment
               if: needs.pr-build-comment.outputs.should-run == 'true'
               uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

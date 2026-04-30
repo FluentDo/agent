@@ -24,6 +24,10 @@ on:
       github-token:
         description: Token to use to pull images from GitHub Container Registry.
         required: true
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   test-containers:
     name: Test K8S version ${{ inputs.kind-version }} with ${{ inputs.image }}:${{ inputs.image-tag }}
@@ -36,6 +40,11 @@ jobs:
       FLUENTDO_AGENT_IMAGE: ${{ inputs.image }}
       FLUENTDO_AGENT_TAG: ${{ inputs.image-tag }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

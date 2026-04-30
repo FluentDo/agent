@@ -12,6 +12,9 @@ on:
 env:
     UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
     DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
+    # Set once from repo variable or override here for testing
+    STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
     promote-ghcr-images:
         name: Promote container images to top-level ghcr.io registries
@@ -23,6 +26,11 @@ jobs:
             OUTPUT_IMAGE_NAME: ghcr.io/telemetryforge/agent
             TAG: ${{ inputs.version }}
         steps:
+            - name: Harden the runner
+              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+              with:
+                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
             - name: Log in to the Container registry
               uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
               with:
@@ -77,6 +85,11 @@ jobs:
           # We must use the top-level image here - see above
           - promote-ghcr-images
         steps:
+            - name: Harden the runner
+              uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+              with:
+                egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
             - name: Log in to the Container registry
               uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
               with:
