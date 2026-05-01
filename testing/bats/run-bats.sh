@@ -17,13 +17,9 @@ export FLUENT_BIT_BINARY=${FLUENT_BIT_BINARY:-/fluent-bit/bin/fluent-bit}
 export TELEMETRY_FORGE_AGENT_VERSION=${TELEMETRY_FORGE_AGENT_VERSION:-26.5.1}
 export TELEMETRY_FORGE_AGENT_URL="${TELEMETRY_FORGE_AGENT_URL:-https://staging.telemetryforge.io}"
 
-# Used primarily for testing the git config plugin: the actual SHA of the commit for a PR, etc.
-export GIT_SHA=${GIT_SHA:-main}
-
 echo "INFO: Testing with binary '$FLUENT_BIT_BINARY'"
 echo "INFO: Testing with version '$TELEMETRY_FORGE_AGENT_VERSION'"
 echo "INFO: Testing with URL '$TELEMETRY_FORGE_AGENT_URL'"
-echo "INFO: Testing with SHA '$GIT_SHA'"
 
 # Optional variables for container/k8s tests
 # TELEMETRY_FORGE_AGENT_IMAGE=...

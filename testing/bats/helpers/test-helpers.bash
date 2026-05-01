@@ -228,3 +228,96 @@ function helmTeardown() {
     fi
 	export DETIK_CLIENT_NAMESPACE=''
 }
+
+# Starts fluent-bit in the background, redirecting output to a temp file
+# Sets FB_PID and FB_LOG as global variables
+function startFluentBit() {
+    FB_LOG=$(mktemp)
+    "$FLUENT_BIT_BINARY" "$@" > "$FB_LOG" 2>&1 &
+    FB_PID=$!
+	echo "Started $FLUENT_BIT_BINARY with PID $FB_PID and log file $FB_LOG: $*"
+}
+
+# After a successful match, call this to record the current log position.
+# Future calls to waitForOutput can then only check for new output since this point
+function markLogPosition() {
+	if [[ -z "${FB_LOG:-}" || -z "${FB_PID:-}" ]]; then
+		fail "Fluent Bit not running, cannot mark log position"
+	fi
+	FB_LOG_OFFSET=$(wc -c < "$FB_LOG")
+}
+
+function resetLogPosition() {
+	unset FB_LOG_OFFSET
+}
+
+# Waits for a specific pattern to appear in the log
+# Usage: waitForOutput "pattern" [timeout_seconds]
+# Default timeout is 30 seconds
+function waitForOutput() {
+    local pattern="$1"
+    local timeout="${2:-30}"
+    local elapsed=0
+    local interval=1
+
+    while (( elapsed < timeout )); do
+        if grep -qE "$pattern" "$FB_LOG" 2>/dev/null; then
+            return 0
+        fi
+
+        # Check if it is still running
+        if ! kill -0 "$FB_PID" 2>/dev/null; then
+            cat "$FB_LOG"
+            fail "$FLUENT_BIT_BINARY exited unexpectedly."
+            return 1
+        fi
+
+        sleep "$interval"
+        elapsed=$(( elapsed + interval ))
+        # Using integer seconds for simplicity in comparison
+    done
+
+    echo "Log contents:"
+    cat "$FB_LOG"
+    fail "Timed out after ${timeout}s waiting for pattern: $pattern"
+	return 1
+}
+
+# Wait for a specific pattern to appear in the log since the last marked position
+function waitForNewOutput() {
+    local pattern="$1"
+    local timeout="${2:-30}"
+    local elapsed=0
+    local interval=1
+    local offset="${FB_LOG_OFFSET:-0}"
+
+    while (( elapsed < timeout )); do
+        if tail -c +"$((offset + 1))" "$FB_LOG" 2>/dev/null | grep -qE "$pattern"; then
+            return 0
+        fi
+
+        if ! kill -0 "$FB_PID" 2>/dev/null; then
+            cat "$FB_LOG"
+            fail "$FLUENT_BIT_BINARY exited unexpectedly."
+            return 1
+        fi
+
+        sleep "$interval"
+        elapsed=$(( elapsed + interval ))
+    done
+
+    echo "Log contents (from offset ${offset}):"
+    tail -c +"$((offset + 1))" "$FB_LOG"
+    fail "Timed out after ${timeout}s waiting for new pattern: $pattern"
+	return 1
+}
+
+# Cleanup function to kill fluent-bit and remove temp files
+function stopFluentBit() {
+    if [[ -n "${FB_PID:-}" ]] && kill -0 "$FB_PID" 2>/dev/null; then
+        kill -9 "$FB_PID"
+        wait "$FB_PID" 2>/dev/null || true
+    fi
+    rm -f "$FB_LOG"
+	resetLogPosition
+}
