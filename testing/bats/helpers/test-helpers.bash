@@ -241,8 +241,8 @@ function startFluentBit() {
 # After a successful match, call this to record the current log position.
 # Future calls to waitForOutput can then only check for new output since this point
 function markLogPosition() {
-	if [[ -z "${FB_LOG:-}" || -z "${FB_PID:-}" ]]; then
-		fail "Fluent Bit not running, cannot mark log position"
+	if [[ -z "${FB_LOG:-}" ]]; then
+		fail "FB_LOG not set, cannot mark log position"
 	fi
 	FB_LOG_OFFSET=$(wc -c < "$FB_LOG")
 }
@@ -254,42 +254,20 @@ function resetLogPosition() {
 # Waits for a specific pattern to appear in the log
 # Usage: waitForOutput "pattern" [timeout_seconds]
 # Default timeout is 30 seconds
-function waitForOutput() {
+function waitForOutputFromOffset() {
     local pattern="$1"
     local timeout="${2:-30}"
+    local offset="${3:-0}"
     local elapsed=0
     local interval=1
 
-    while (( elapsed < timeout )); do
-        if grep -qE "$pattern" "$FB_LOG" 2>/dev/null; then
-            return 0
-        fi
+	if [[ -z "${FB_LOG:-}" ]]; then
+		fail "FB_LOG not set, cannot wait for output"
+	fi
 
-        # Check if it is still running
-        if ! kill -0 "$FB_PID" 2>/dev/null; then
-            cat "$FB_LOG"
-            fail "$FLUENT_BIT_BINARY exited unexpectedly."
-            return 1
-        fi
-
-        sleep "$interval"
-        elapsed=$(( elapsed + interval ))
-        # Using integer seconds for simplicity in comparison
-    done
-
-    echo "Log contents:"
-    cat "$FB_LOG"
-    fail "Timed out after ${timeout}s waiting for pattern: $pattern"
-	return 1
-}
-
-# Wait for a specific pattern to appear in the log since the last marked position
-function waitForNewOutput() {
-    local pattern="$1"
-    local timeout="${2:-30}"
-    local elapsed=0
-    local interval=1
-    local offset="${FB_LOG_OFFSET:-0}"
+	if [[ -z "${FB_PID:-}" ]]; then
+		fail "FB_PID not set, cannot wait for output"
+	fi
 
     while (( elapsed < timeout )); do
         if tail -c +"$((offset + 1))" "$FB_LOG" 2>/dev/null | grep -qE "$pattern"; then
@@ -310,6 +288,16 @@ function waitForNewOutput() {
     tail -c +"$((offset + 1))" "$FB_LOG"
     fail "Timed out after ${timeout}s waiting for new pattern: $pattern"
 	return 1
+}
+
+# Wait for a specific pattern to appear in the log since the start of the log (i.e. not just new output since the last marked position)
+function waitForOutput() {
+	waitForOutputFromOffset "$1" "$2" 0
+}
+
+# Wait for a specific pattern to appear in the log since the last marked position
+function waitForNewOutput() {
+	waitForOutputFromOffset "$1" "$2" "${FB_LOG_OFFSET:-0}"
 }
 
 # Cleanup function to kill fluent-bit and remove temp files
