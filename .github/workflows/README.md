@@ -214,6 +214,7 @@ The CI/CD pipeline is designed to:
 **Triggers:**
 
 - Schedule: Mondays at 10:00 UTC (25.10 LTS releases)
+- Schedule: Mondays at 14:00 UTC (26.4 LTS releases)
 - Schedule: Tuesdays at 10:00 UTC (latest releases)
 - Manual workflow dispatch
 
