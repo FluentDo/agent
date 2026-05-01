@@ -33,6 +33,9 @@ setupFile() {
     [ -n "$TELEMETRY_FORGE_AGENT_URL" ]
 }
 
+# If you hit failures with the install script the verify the Cloudflare Bot or security rules
+# are not preventing access to the index.html page at the root of the repo.
+
 # Test that we can fetch the top-level index
 @test "integration: can access index at $TELEMETRY_FORGE_AGENT_URL/index.html" {
     response=$(curl --max-time 60 -s -o /dev/null -w "%{http_code}" "$TELEMETRY_FORGE_AGENT_URL/index.html")
