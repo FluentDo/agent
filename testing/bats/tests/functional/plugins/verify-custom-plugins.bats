@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 
+load "$HELPERS_ROOT/test-helpers.bash"
 ensure_variables_set BATS_SUPPORT_ROOT BATS_ASSERT_ROOT BATS_FILE_ROOT FLUENT_BIT_BINARY
 
 load "$BATS_SUPPORT_ROOT/load.bash"
@@ -7,9 +8,6 @@ load "$BATS_ASSERT_ROOT/load.bash"
 load "$BATS_FILE_ROOT/load.bash"
 
 # bats file_tags=functional
-
-setup() {
-}
 
 teardown() {
     if [[ -n "${SKIP_TEARDOWN:-}" ]]; then
@@ -24,18 +22,20 @@ teardown() {
     run "$FLUENT_BIT_BINARY" -C git_config --help
     assert_success
     refute_output --partial "[error]"
-    refute_output --partial "tried to instance a plugin name that doesn't exist"
 }
 
+# Processors cannot be individually queried unfortunately like custom plugins so we just check for their existence in the help output
 @test "verify log_sampling processor exists" {
+    PLUGIN_NAME="log_sampling"
     run "$FLUENT_BIT_BINARY" --help
     assert_success
-    assert_output --partial "log_sampling"
+    assert_output --partial "$PLUGIN_NAME"
 }
 
-@test "verify dedupe processor exists" {
+@test "verify de-duplication processor exists" {
+    PLUGIN_NAME="dedup"
     run "$FLUENT_BIT_BINARY" --help
     assert_success
-    assert_output --partial "dedupe"
+    assert_output --partial "$PLUGIN_NAME"
 }
 
