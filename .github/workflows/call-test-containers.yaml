@@ -61,6 +61,8 @@ jobs:
       TELEMETRY_FORGE_AGENT_TAG: ${{ inputs.image-tag }}
       # Support legacy tag variable for backwards compatibility
       FLUENTDO_AGENT_TAG: ${{ inputs.image-tag }}
+      # See https://github.com/orgs/community/discussions/25191
+      GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:
       packages: read
     steps:
@@ -84,7 +86,7 @@ jobs:
           password: ${{ secrets.github-token }}
 
       - name: Run all functional BATS tests
-        run: docker run --rm -t "${{ inputs.image }}/test:${{ inputs.image-tag }}"
+        run: docker run --rm -t -e GIT_SHA="$GIT_SHA" "${{ inputs.image }}/test:${{ inputs.image-tag }}"
         shell: bash
 
       - name: Install BATS
@@ -119,8 +121,6 @@ jobs:
           BATS_NO_PARALLELIZE_ACROSS_FILES: 1
           BATS_NUMBER_OF_PARALLEL_JOBS: 4
           BATS_PARALLEL_BINARY_NAME: rush
-          # See https://github.com/orgs/community/discussions/25191
-          GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
   test-verify-signatures:
     name: Verify image signatures for ${{ inputs.image }}:${{ inputs.image-tag }}
