@@ -170,8 +170,9 @@ FROM production AS test
 USER root
 
 # We need find and ps/pkill for BATS
+# We need git for the git_config plugin tests
 # hadolint ignore=DL3041
-RUN microdnf update -y && microdnf install -y findutils procps && microdnf clean all
+RUN microdnf update -y && microdnf install -y findutils procps git && microdnf clean all
 
 COPY --from=bats /opt/bats /opt/bats
 RUN /opt/bats/install.sh /usr/local
