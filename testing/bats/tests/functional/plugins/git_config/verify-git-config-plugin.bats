@@ -12,7 +12,7 @@ teardown() {
     if [[ -n "${SKIP_TEARDOWN:-}" ]]; then
         echo "Skipping teardown"
     else
-        # Clean up the git repository after each test to ensure a clean state for the next test
+        # Stop Fluent Bit after each test
         stopFluentBit
     fi
 }
@@ -20,7 +20,7 @@ teardown() {
 # We are not testing libgit here but just the implementation of our plugin.
 #
 # We use a local git repository for testing as getting the SHA of PR commits
-# is apparently a nightmare with Github plus it introduces a lot of extra
+# is apparently a nightmare with GitHub plus it introduces a lot of extra
 # complexity.
 #
 # We want to set up a simple local repo we can always access and then confirm

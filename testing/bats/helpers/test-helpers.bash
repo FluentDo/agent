@@ -318,6 +318,8 @@ function stopFluentBit() {
         kill -9 "$FB_PID"
         wait "$FB_PID" 2>/dev/null || true
     fi
-    rm -f "$FB_LOG"
+    if [[ -n "${FB_LOG:-}" ]]; then
+        rm -f "$FB_LOG"
+    fi
 	resetLogPosition
 }
