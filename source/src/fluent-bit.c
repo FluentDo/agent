@@ -1231,7 +1231,8 @@ int flb_main(int argc, char **argv)
 #ifdef FLB_SYSTEM_WINDOWS
         flb_console_handler_set_ctx(ctx, cf_opts);
 #endif
-        if (dump_requested) {
+        if (dump_requested &&
+            ctx != NULL && ctx->config != NULL) {
             dump_requested = 0;
             flb_dump(ctx->config);
         }
