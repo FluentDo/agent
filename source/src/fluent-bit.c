@@ -880,6 +880,12 @@ int flb_main(int argc, char **argv)
     /* Create Fluent Bit context */
     ctx = flb_create();
     if (!ctx) {
+        flb_cf_destroy(cf_opts);
+#ifdef FLB_HAVE_CHUNK_TRACE
+        if (trace_output) {
+            flb_free(trace_output);
+        }
+#endif
         exit(EXIT_FAILURE);
     }
     config = ctx->config;
