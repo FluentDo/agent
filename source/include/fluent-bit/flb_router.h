@@ -33,7 +33,7 @@
 struct flb_router_path {
     struct flb_output_instance *ins;
     struct flb_route *route;
-    struct mk_list _head;
+    struct cfl_list _head;
 };
 
 static inline int flb_router_match_type(int in_event_type,
