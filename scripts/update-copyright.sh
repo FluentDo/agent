@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euxo pipefail
+set -euo pipefail
 
 # This does not work with a symlink to this script
 # SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -26,4 +26,6 @@ SOURCE_ROOT=${SOURCE_ROOT:-$REPO_ROOT/source}
 # If the copyright statement does not include the current year, update it to include the current year.
 # If the copyright statement does not include the year at all, add the current year to the end of the statement.
 CURRENT_YEAR=$(date +"%Y")
-find "$SOURCE_ROOT" -type f \( -path "*/include/*" -o -path "*/src/*" \) -exec sed -i -E "s/(Copyright \(C\) [0-9]{4})-([0-9]{4})? The Fluent Bit Authors/\1-$CURRENT_YEAR The Fluent Bit Authors/g" {} \;
+find "$SOURCE_ROOT" -type f \( -path "*/include/*" -o -path "*/src/*" -o -path "*/tests/*" -o -path "*/plugins/*" \) -exec sed -i -E "s/(Copyright \(C\)[\w]+[0-9]{4})([-\w]*)?([0-9]{4})?[\w]+The Fluent Bit Authors/\1-$CURRENT_YEAR The Fluent Bit Authors/g" {} \;
+
+grep -R "The Fluent Bit Authors" "$SOURCE_ROOT" | grep -v "$CURRENT_YEAR The Fluent Bit Authors" || true
