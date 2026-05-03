@@ -142,7 +142,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/library")
 option(FLB_ALL                 "Enable all features"                         No)
 option(FLB_DEBUG               "Build with debug mode (-g)"                  No)
 option(FLB_RELEASE             "Build with release mode (-O2 -g -DNDEBUG)"   Yes)
-set(FLB_IPO "ReleaseOnly" CACHE STRING "Build with interprocedular optimization")
+set(FLB_IPO "ReleaseOnly" CACHE STRING "Build with interprocedural optimization")
 set_property(CACHE FLB_IPO PROPERTY STRINGS "On;Off;ReleaseOnly")
 option(FLB_SMALL               "Optimise for small size"       No)
 set(FLB_SECURITY "ReleaseOnly" CACHE STRING "Build with security optimizations")
@@ -427,14 +427,6 @@ elseif(FLB_RELEASE AND NOT MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
   elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-dead_strip")
-  endif()
-endif()
-
-# simdutf
-if(FLB_UNICODE_ENCODER)
-  if (NOT FLB_USE_SIMDUTF)
-    message(STATUS "FLB_USE_SIMDUTF is disabled. Disabling FLB_UNICODE_ENCODER support.")
-    set(FLB_UNICODE_ENCODER OFF)
   endif()
 endif()
 
@@ -828,6 +820,8 @@ endif()
 # AWS MSK IAM detection (must come after Kafka section)
 if(FLB_AWS AND FLB_KAFKA)
   # Check if Kafka SASL support was detected
+  # On Windows: uses SSPI (no Cyrus SASL needed, just SSL)
+  # On Linux/macOS: uses Cyrus SASL (libsasl2)
   if(DEFINED FLB_SASL_ENABLED AND FLB_SASL_ENABLED)
     set(FLB_HAVE_AWS_MSK_IAM ON)  # Set CMake variable
     FLB_DEFINITION(FLB_HAVE_AWS_MSK_IAM)  # Set preprocessor definition

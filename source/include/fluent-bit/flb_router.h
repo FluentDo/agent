@@ -32,6 +32,17 @@
 #include <cmetrics/cmt_counter.h>
 #include <monkey/mk_core.h>
 
+struct flb_mp_chunk_cobj;
+struct flb_log_event_encoder;
+struct flb_log_event_decoder;
+struct flb_mp_chunk_record;
+
+struct flb_router_chunk_context {
+    struct flb_mp_chunk_cobj *chunk_cobj;
+    struct flb_log_event_encoder *log_encoder;
+    struct flb_log_event_decoder *log_decoder;
+};
+
 struct flb_router_path {
     struct flb_output_instance *ins;
     struct flb_route *route;
@@ -96,6 +107,7 @@ struct flb_route_condition_rule {
     flb_sds_t value;
     flb_sds_t *values;
     size_t values_count;
+    enum record_context_type context;
     struct cfl_list _head;
 };
 
@@ -110,6 +122,7 @@ struct flb_route_condition {
 struct flb_route_output {
     flb_sds_t name;
     flb_sds_t fallback;
+    struct flb_output_instance *ins;
     struct cfl_list _head;
 };
 
@@ -129,6 +142,7 @@ struct flb_route {
     flb_sds_t name;
     uint32_t signals;
     struct flb_route_condition *condition;
+    int per_record_routing;
     struct cfl_list outputs;
     struct cfl_list processors;
     struct cfl_list _head;
@@ -156,16 +170,31 @@ void flb_router_exit(struct flb_config *config);
 
 uint32_t flb_router_signal_from_chunk(struct flb_event_chunk *chunk);
 
+int flb_router_chunk_context_init(struct flb_router_chunk_context *context);
+void flb_router_chunk_context_reset(struct flb_router_chunk_context *context);
+void flb_router_chunk_context_destroy(struct flb_router_chunk_context *context);
+int flb_router_chunk_context_prepare_logs(struct flb_router_chunk_context *context,
+                                          struct flb_event_chunk *chunk);
+
 int flb_route_condition_eval(struct flb_event_chunk *chunk,
+                             struct flb_router_chunk_context *context,
                              struct flb_route *route);
+int flb_router_condition_evaluate_record(struct flb_route *route,
+                                         struct flb_mp_chunk_record *record);
 int flb_condition_eval_logs(struct flb_event_chunk *chunk,
+                            struct flb_router_chunk_context *context,
                             struct flb_route *route);
 int flb_condition_eval_metrics(struct flb_event_chunk *chunk,
+                               struct flb_router_chunk_context *context,
                                struct flb_route *route);
 int flb_condition_eval_traces(struct flb_event_chunk *chunk,
+                              struct flb_router_chunk_context *context,
                               struct flb_route *route);
 int flb_router_path_should_route(struct flb_event_chunk *chunk,
+                                 struct flb_router_chunk_context *context,
                                  struct flb_router_path *path);
+
+struct flb_condition *flb_router_route_get_condition(struct flb_route *route);
 
 struct flb_cf;
 

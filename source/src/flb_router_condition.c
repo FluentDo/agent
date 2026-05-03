@@ -21,15 +21,236 @@
 #include <fluent-bit/flb_log.h>
 #include <fluent-bit/flb_router.h>
 #include <fluent-bit/flb_conditionals.h>
+#include <fluent-bit/flb_log_event_encoder.h>
 #include <fluent-bit/flb_log_event_decoder.h>
-#include <fluent-bit/flb_mp.h>
 #include <fluent-bit/flb_mp_chunk.h>
+#include <cfl/cfl_kvlist.h>
 
 #define FLB_ROUTE_CONDITION_COMPILED_SUCCESS  1
 #define FLB_ROUTE_CONDITION_COMPILED_FAILURE -1
 
 static struct flb_condition *route_condition_get_compiled(struct flb_route_condition *condition);
-static void route_condition_record_destroy(struct flb_mp_chunk_record *record);
+
+static inline struct cfl_variant *get_object_variant(struct cfl_object *object)
+{
+    if (!object) {
+        return NULL;
+    }
+
+    return object->variant;
+}
+
+static inline struct cfl_variant *get_body_variant(struct flb_mp_chunk_record *record)
+{
+    if (!record || !record->cobj_record) {
+        return NULL;
+    }
+
+    return record->cobj_record->variant;
+}
+
+static struct cfl_variant *get_otel_container_variant(struct flb_mp_chunk_record *record,
+                                                      const char *key,
+                                                      int use_group_attributes)
+{
+    struct cfl_variant *source;
+    struct cfl_variant *container;
+
+    /* For OTLP, resource/scope attributes are in group_attributes, not body */
+    if (use_group_attributes && record->cobj_group_attributes && record->cobj_group_attributes->variant) {
+        source = record->cobj_group_attributes->variant;
+    }
+    else {
+        source = get_body_variant(record);
+    }
+
+    if (!source || source->type != CFL_VARIANT_KVLIST) {
+        return NULL;
+    }
+
+    container = cfl_kvlist_fetch(source->data.as_kvlist, key);
+    if (!container || container->type != CFL_VARIANT_KVLIST) {
+        return NULL;
+    }
+
+    return container;
+}
+
+static struct cfl_variant *get_otel_attributes_variant(struct flb_mp_chunk_record *record,
+                                                       enum record_context_type context_type)
+{
+    struct cfl_variant *container;
+    const char *container_key = NULL;
+
+    if (context_type == RECORD_CONTEXT_OTEL_RESOURCE_ATTRIBUTES) {
+        container_key = "resource";
+    }
+    else if (context_type == RECORD_CONTEXT_OTEL_SCOPE_ATTRIBUTES) {
+        container_key = "scope";
+    }
+    else {
+        return NULL;
+    }
+
+    /* For OTLP resource/scope attributes, look in group_attributes first */
+    container = get_otel_container_variant(record, container_key, 1);
+    if (!container) {
+        return NULL;
+    }
+
+    container = cfl_kvlist_fetch(container->data.as_kvlist, "attributes");
+    if (!container || container->type != CFL_VARIANT_KVLIST) {
+        return NULL;
+    }
+
+    return container;
+}
+
+static struct cfl_variant *get_otel_scope_metadata_variant(struct flb_mp_chunk_record *record)
+{
+    struct cfl_variant *scope;
+
+    /* For OTLP scope metadata, also check group_attributes first */
+    scope = get_otel_container_variant(record, "scope", 1);
+    if (!scope || scope->type != CFL_VARIANT_KVLIST) {
+        return NULL;
+    }
+
+    return scope;
+}
+
+static struct cfl_variant *route_logs_get_variant(struct flb_condition_rule *rule,
+                                                  void *ctx)
+{
+    struct flb_mp_chunk_record *record = (struct flb_mp_chunk_record *) ctx;
+
+    if (!rule || !record) {
+        return NULL;
+    }
+
+    switch (rule->context) {
+    case RECORD_CONTEXT_METADATA:
+        return get_object_variant(record->cobj_metadata);
+    case RECORD_CONTEXT_BODY:
+        return get_body_variant(record);
+    case RECORD_CONTEXT_GROUP_METADATA:
+        return get_object_variant(record->cobj_group_metadata);
+    case RECORD_CONTEXT_GROUP_ATTRIBUTES:
+        return get_object_variant(record->cobj_group_attributes);
+    case RECORD_CONTEXT_OTEL_RESOURCE_ATTRIBUTES:
+    case RECORD_CONTEXT_OTEL_SCOPE_ATTRIBUTES:
+        return get_otel_attributes_variant(record, rule->context);
+    case RECORD_CONTEXT_OTEL_SCOPE_METADATA:
+        return get_otel_scope_metadata_variant(record);
+    default:
+        break;
+    }
+
+    return NULL;
+}
+
+int flb_router_chunk_context_init(struct flb_router_chunk_context *context)
+{
+    if (!context) {
+        return -1;
+    }
+
+    context->chunk_cobj = NULL;
+    context->log_encoder = NULL;
+    context->log_decoder = NULL;
+
+    return 0;
+}
+
+void flb_router_chunk_context_reset(struct flb_router_chunk_context *context)
+{
+    if (!context) {
+        return;
+    }
+
+    if (context->chunk_cobj) {
+        flb_mp_chunk_cobj_destroy(context->chunk_cobj);
+        context->chunk_cobj = NULL;
+    }
+
+    if (context->log_decoder) {
+        flb_log_event_decoder_destroy(context->log_decoder);
+        context->log_decoder = NULL;
+    }
+
+    if (context->log_encoder) {
+        flb_log_event_encoder_destroy(context->log_encoder);
+        context->log_encoder = NULL;
+    }
+}
+
+void flb_router_chunk_context_destroy(struct flb_router_chunk_context *context)
+{
+    flb_router_chunk_context_reset(context);
+}
+
+int flb_router_chunk_context_prepare_logs(struct flb_router_chunk_context *context,
+                                          struct flb_event_chunk *chunk)
+{
+    int ret;
+    struct flb_mp_chunk_record *record;
+
+    if (!context || !chunk) {
+        return -1;
+    }
+
+    if (chunk->type != FLB_EVENT_TYPE_LOGS) {
+        return 0;
+    }
+
+    if (context->chunk_cobj) {
+        return 0;
+    }
+
+    if (!chunk->data || chunk->size == 0) {
+        return -1;
+    }
+
+    if (!context->log_encoder) {
+        context->log_encoder = flb_log_event_encoder_create(FLB_LOG_EVENT_FORMAT_DEFAULT);
+        if (!context->log_encoder) {
+            return -1;
+        }
+    }
+
+    if (!context->log_decoder) {
+        context->log_decoder = flb_log_event_decoder_create(NULL, 0);
+        if (!context->log_decoder) {
+            flb_router_chunk_context_reset(context);
+            return -1;
+        }
+        flb_log_event_decoder_read_groups(context->log_decoder, FLB_TRUE);
+    }
+
+    flb_log_event_decoder_reset(context->log_decoder, chunk->data, chunk->size);
+
+    context->chunk_cobj = flb_mp_chunk_cobj_create(context->log_encoder,
+                                                   context->log_decoder);
+    if (!context->chunk_cobj) {
+        flb_router_chunk_context_reset(context);
+        return -1;
+    }
+
+    while ((ret = flb_mp_chunk_cobj_record_next(context->chunk_cobj, &record)) ==
+           FLB_MP_CHUNK_RECORD_OK) {
+        continue;
+    }
+
+    if (ret != FLB_MP_CHUNK_RECORD_EOF) {
+        flb_router_chunk_context_reset(context);
+        return -1;
+    }
+
+    context->chunk_cobj->record_pos = NULL;
+    context->chunk_cobj->condition = NULL;
+
+    return 0;
+}
 
 uint32_t flb_router_signal_from_chunk(struct flb_event_chunk *chunk)
 {
@@ -52,21 +273,16 @@ uint32_t flb_router_signal_from_chunk(struct flb_event_chunk *chunk)
 }
 
 int flb_condition_eval_logs(struct flb_event_chunk *chunk,
+                            struct flb_router_chunk_context *context,
                             struct flb_route *route)
 {
-    int ret;
     int result = FLB_FALSE;
     struct flb_route_condition *condition;
     struct flb_condition *compiled;
-    struct flb_log_event_decoder decoder;
-    struct flb_log_event event;
-    struct flb_mp_chunk_record record;
+    struct flb_mp_chunk_record *record;
+    struct cfl_list *head;
 
-    if (!chunk || !route || !route->condition) {
-        return FLB_FALSE;
-    }
-
-    if (!chunk->data || chunk->size == 0) {
+    if (!chunk || !context || !route || !route->condition) {
         return FLB_FALSE;
     }
 
@@ -77,66 +293,50 @@ int flb_condition_eval_logs(struct flb_event_chunk *chunk,
         return FLB_FALSE;
     }
 
-    ret = flb_log_event_decoder_init(&decoder, chunk->data, chunk->size);
-    if (ret != FLB_EVENT_DECODER_SUCCESS) {
+    if (flb_router_chunk_context_prepare_logs(context, chunk) != 0) {
         return FLB_FALSE;
     }
 
-    flb_log_event_decoder_read_groups(&decoder, FLB_TRUE);
-
-    while ((ret = flb_log_event_decoder_next(&decoder, &event)) == FLB_EVENT_DECODER_SUCCESS) {
-        memset(&record, 0, sizeof(record));
-        record.event = event;
-
-        if (event.metadata) {
-            record.cobj_metadata = flb_mp_object_to_cfl(event.metadata);
-            if (!record.cobj_metadata) {
-                route_condition_record_destroy(&record);
-                break;
-            }
-        }
-
-        if (event.body) {
-            record.cobj_record = flb_mp_object_to_cfl(event.body);
-            if (!record.cobj_record) {
-                route_condition_record_destroy(&record);
-                break;
-            }
-        }
-
-        if (flb_condition_evaluate(compiled, &record) == FLB_TRUE) {
-            result = FLB_TRUE;
-            route_condition_record_destroy(&record);
-            break;
-        }
-
-        route_condition_record_destroy(&record);
+    if (!context->chunk_cobj) {
+        return FLB_FALSE;
     }
 
-    flb_log_event_decoder_destroy(&decoder);
+    cfl_list_foreach(head, &context->chunk_cobj->records) {
+        record = cfl_list_entry(head, struct flb_mp_chunk_record, _head);
+
+        if (flb_condition_evaluate_ex(compiled, record, route_logs_get_variant) == FLB_TRUE) {
+            result = FLB_TRUE;
+            break;
+        }
+    }
 
     return result;
 }
 
 int flb_condition_eval_metrics(struct flb_event_chunk *chunk,
+                               struct flb_router_chunk_context *context,
                                struct flb_route *route)
 {
     (void) chunk;
+    (void) context;
     (void) route;
 
     return FLB_FALSE;
 }
 
 int flb_condition_eval_traces(struct flb_event_chunk *chunk,
+                              struct flb_router_chunk_context *context,
                               struct flb_route *route)
 {
     (void) chunk;
+    (void) context;
     (void) route;
 
     return FLB_FALSE;
 }
 
 int flb_route_condition_eval(struct flb_event_chunk *chunk,
+                             struct flb_router_chunk_context *context,
                              struct flb_route *route)
 {
     uint32_t signal;
@@ -164,11 +364,11 @@ int flb_route_condition_eval(struct flb_event_chunk *chunk,
 
     switch (signal) {
     case FLB_ROUTER_SIGNAL_LOGS:
-        return flb_condition_eval_logs(chunk, route);
+        return flb_condition_eval_logs(chunk, context, route);
     case FLB_ROUTER_SIGNAL_METRICS:
-        return flb_condition_eval_metrics(chunk, route);
+        return flb_condition_eval_metrics(chunk, context, route);
     case FLB_ROUTER_SIGNAL_TRACES:
-        return flb_condition_eval_traces(chunk, route);
+        return flb_condition_eval_traces(chunk, context, route);
     default:
         break;
     }
@@ -177,6 +377,7 @@ int flb_route_condition_eval(struct flb_event_chunk *chunk,
 }
 
 int flb_router_path_should_route(struct flb_event_chunk *chunk,
+                                 struct flb_router_chunk_context *context,
                                  struct flb_router_path *path)
 {
     if (!path) {
@@ -187,7 +388,51 @@ int flb_router_path_should_route(struct flb_event_chunk *chunk,
         return FLB_TRUE;
     }
 
-    return flb_route_condition_eval(chunk, path->route);
+    if (chunk && chunk->type == FLB_EVENT_TYPE_LOGS) {
+        if (!context) {
+            return FLB_FALSE;
+        }
+
+        if (flb_router_chunk_context_prepare_logs(context, chunk) != 0) {
+            return FLB_FALSE;
+        }
+    }
+
+    return flb_route_condition_eval(chunk, context, path->route);
+}
+
+struct flb_condition *flb_router_route_get_condition(struct flb_route *route)
+{
+    if (!route || !route->condition) {
+        return NULL;
+    }
+
+    return route_condition_get_compiled(route->condition);
+}
+
+int flb_router_condition_evaluate_record(struct flb_route *route,
+                                         struct flb_mp_chunk_record *record)
+{
+    struct flb_condition *compiled;
+
+    if (!route || !record) {
+        return FLB_FALSE;
+    }
+
+    if (!route->condition) {
+        return FLB_TRUE;
+    }
+
+    compiled = flb_router_route_get_condition(route);
+    if (!compiled) {
+        if (route->condition->is_default) {
+            return FLB_TRUE;
+        }
+
+        return FLB_FALSE;
+    }
+
+    return flb_condition_evaluate_ex(compiled, record, route_logs_get_variant);
 }
 
 static int parse_rule_operator(const flb_sds_t op_str,
@@ -290,7 +535,7 @@ static struct flb_condition *route_condition_compile(struct flb_route_condition 
                 return NULL;
             }
             ret = flb_condition_add_rule(compiled, rule->field, op,
-                                         rule->value, 1, RECORD_CONTEXT_BODY);
+                                         rule->value, 1, rule->context);
             break;
         case FLB_RULE_OP_GT:
         case FLB_RULE_OP_LT:
@@ -305,7 +550,7 @@ static struct flb_condition *route_condition_compile(struct flb_route_condition 
                 return NULL;
             }
             ret = flb_condition_add_rule(compiled, rule->field, op,
-                                         &numeric_value, 1, RECORD_CONTEXT_BODY);
+                                         &numeric_value, 1, rule->context);
             break;
         case FLB_RULE_OP_IN:
         case FLB_RULE_OP_NOT_IN:
@@ -316,7 +561,7 @@ static struct flb_condition *route_condition_compile(struct flb_route_condition 
             ret = flb_condition_add_rule(compiled, rule->field, op,
                                          rule->values,
                                          (int) rule->values_count,
-                                         RECORD_CONTEXT_BODY);
+                                         rule->context);
             break;
         default:
             flb_condition_destroy(compiled);
@@ -355,22 +600,5 @@ static struct flb_condition *route_condition_get_compiled(struct flb_route_condi
 
     condition->compiled_status = FLB_ROUTE_CONDITION_COMPILED_SUCCESS;
     return condition->compiled;
-}
-
-static void route_condition_record_destroy(struct flb_mp_chunk_record *record)
-{
-    if (!record) {
-        return;
-    }
-
-    if (record->cobj_record) {
-        cfl_object_destroy(record->cobj_record);
-        record->cobj_record = NULL;
-    }
-
-    if (record->cobj_metadata) {
-        cfl_object_destroy(record->cobj_metadata);
-        record->cobj_metadata = NULL;
-    }
 }
 

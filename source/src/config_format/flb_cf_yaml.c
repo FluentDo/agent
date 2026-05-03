@@ -2240,6 +2240,10 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
                 /* Use variants for processors and filters to support complex nested structures */
                 state = state_push_variant(ctx, state, 0);
             }
+            else if (strcmp(state->key, "routes") == 0 ||
+                     strcmp(state->key, "processors") == 0) {
+                state = state_push_variant(ctx, state, 0);
+            }
             else {
                 state = state_push_witharr(ctx, state, STATE_PLUGIN_VAL_LIST);
             }
@@ -2250,6 +2254,30 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
             }
             break;
         case YAML_MAPPING_START_EVENT:
+
+            if (strcmp(state->key, "processors") == 0) {
+                struct flb_cf_group *group;
+
+                group = flb_cf_group_create(conf, state->cf_section,
+                                             state->key,
+                                             strlen(state->key));
+
+                if (group == NULL) {
+                    flb_error("unable to create processors group");
+                    return YAML_FAILURE;
+                }
+
+                state->cf_group = group;
+                state = state_push(ctx, STATE_INPUT_PROCESSORS);
+
+                if (state == NULL) {
+                    flb_error("unable to allocate state");
+                    return YAML_FAILURE;
+                }
+
+                break;
+            }
+
             if (state->section == SECTION_PROCESSOR || state->section == SECTION_FILTER) {
                 /* when in a processor or filter section, allow plugins to have nested
                  * properties which are returned as a cfl_variant */
@@ -2262,15 +2290,12 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
                 break;
             }
 
-            if (strcmp(state->key, "processors") == 0) {
-                state = state_push(ctx, STATE_INPUT_PROCESSORS);
+            if (strcmp(state->key, "routes") == 0 ||
+                strcmp(state->key, "processors") == 0) {
+                state = state_push_variant(ctx, state, 1);
 
                 if (state == NULL) {
                     flb_error("unable to allocate state");
-                    return YAML_FAILURE;
-                }
-
-                if (state_create_group(conf, state, "processors") == YAML_FAILURE) {
                     return YAML_FAILURE;
                 }
                 break;
