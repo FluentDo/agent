@@ -963,7 +963,6 @@ int flb_engine_start(struct flb_config *config)
         return -1;
     }
 
-
     /* Initialize filter plugins */
     ret = flb_filter_init_all(config);
     if (ret == -1) {

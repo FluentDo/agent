@@ -920,7 +920,9 @@ static enum status state_copy_into_properties(struct parser_state *state, struct
     struct cfl_variant *var;
     struct cfl_variant *variant;
     struct cfl_array *arr;
-    int idx;
+    size_t idx;
+    size_t entry_count;
+    int array_all_strings;
 
     cfl_list_foreach(head, &state->keyvals->list) {
         kvp = cfl_list_entry(head, struct cfl_kvpair, _head);

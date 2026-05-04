@@ -1062,7 +1062,8 @@ int splunk_prot_handle(struct flb_splunk *ctx, struct splunk_conn *conn,
 
             if (ret < 0) {
                 send_json_message_response(conn, 400, "{\"text\":\"Invalid data format\",\"code\":6}");
-            } else {
+            }
+            else {
                 send_json_message_response(conn, 200, "{\"text\":\"Success\",\"code\":0}");
             }
         }
@@ -1087,7 +1088,8 @@ int splunk_prot_handle(struct flb_splunk *ctx, struct splunk_conn *conn,
 
             if (ret < 0) {
                 send_json_message_response(conn, 400, "{\"text\":\"Invalid data format\",\"code\":6}");
-            } else {
+            }
+            else {
                 send_json_message_response(conn, 200, "{\"text\":\"Success\",\"code\":0}");
             }
         }

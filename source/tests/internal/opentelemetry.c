@@ -27,6 +27,7 @@
 
 // #include "../../plugins/in_opentelemetry/opentelemetry.h"
 #include <fluent-bit/flb_opentelemetry.h>
+#include <ctraces/ctraces.h>
 #include <msgpack.h>
 #include <string.h>
 
