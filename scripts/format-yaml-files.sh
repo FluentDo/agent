@@ -19,23 +19,26 @@ REPO_ROOT=${REPO_ROOT:-${SCRIPT_DIR}/..}
 
 YAML_DIR=${YAML_DIR:-$REPO_ROOT/.github/workflows}
 
-# Check if prettier is installed, if not install it globally
-if ! command -v prettier &> /dev/null
-then
-    echo "prettier could not be found, installing it globally..."
-    sudo npm install -g prettier
+if command -v prettier &> /dev/null; then
+    PRETTIER_CMD=(prettier)
+elif command -v npx &> /dev/null; then
+    PRETTIER_CMD=(npx --yes prettier)
+else
+    echo "prettier is not available and npx is not installed."
+    echo "Please install prettier or npm/npx."
+    exit 1
 fi
 
 # Format all yaml files in the directory
-find "$YAML_DIR" -name "*.yaml" -o -name "*.yml" | while read -r file; do
+find "$YAML_DIR" \( -name "*.yaml" -o -name "*.yml" \) | while read -r file; do
     echo "Formatting $file"
-    prettier --write "$file"
+    "${PRETTIER_CMD[@]}" --write "$file"
 done
 
 # Check if there are any changes after formatting
-if [[ -n $(git status --porcelain) ]]; then
+if [[ -n $(git -C "$REPO_ROOT" status --porcelain -- "$YAML_DIR") ]]; then
     echo "The following files were modified after formatting:"
-    git status --porcelain
+    git -C "$REPO_ROOT" status --porcelain -- "$YAML_DIR"
     echo "Please review the changes and commit them."
     exit 1
 else
