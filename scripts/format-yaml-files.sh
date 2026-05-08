@@ -30,7 +30,7 @@ else
 fi
 
 # Format all yaml files in the directory
-find "$YAML_DIR" \( -name "*.yaml" -o -name "*.yml" \) | while read -r file; do
+find "$YAML_DIR" -type f \( -name "*.yaml" -o -name "*.yml" \) | while read -r file; do
     echo "Formatting $file"
     "${PRETTIER_CMD[@]}" --write "$file"
 done
