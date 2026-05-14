@@ -36,3 +36,4 @@ jobs:
           input: ".github/"
           # We want to fail the job
           advanced-security: false
+          min-severities: "medium"
