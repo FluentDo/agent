@@ -50,21 +50,21 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: 25.10 run
-        if: github.event_name == 'schedule' && github.event.schedule=='0 10 * * 1'
+        if: github.event_name == 'schedule' && github.event.schedule=='0 14 1 * *'
         run: |
           echo "BRANCH=release/25.10-lts" >> $GITHUB_ENV
           echo "TAG_PREFIX=v25.10*" >> $GITHUB_ENV
         shell: bash
 
       - name: 26.4 run
-        if: github.event_name == 'schedule' && github.event.schedule=='0 14 * * 1'
+        if: github.event_name == 'schedule' && github.event.schedule=='0 14 15 * *'
         run: |
           echo "BRANCH=release/26.4-lts" >> $GITHUB_ENV
           echo "TAG_PREFIX=v26.4*" >> $GITHUB_ENV
         shell: bash
 
       - name: main run
-        if: github.event_name == 'schedule' && github.event.schedule=='0 10 * * 2'
+        if: github.event_name == 'schedule' && github.event.schedule=='0 10 * * 1'
         run: |
           echo "BRANCH=main" >> $GITHUB_ENV
           echo "TAG_PREFIX=v*" >> $GITHUB_ENV
