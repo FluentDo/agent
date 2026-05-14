@@ -27,7 +27,7 @@ It also has built-in functionality for:
 
 | Version | Release Date | Type | End of Support | Status | Branch |
 | ------- | ------------ | ---- | -------------- | ------ | ------ |
-| **[26.10](https://github.com/orgs/telemetryforge/projects/6)** | Apr 2027 | LTS | Apr 2029 | 🟡 Planned | `main` |
+| **[27.4](https://github.com/orgs/telemetryforge/projects/6)** | Apr 2027 | LTS | Apr 2029 | 🟡 Planned | `main` |
 | **[26.10](https://github.com/orgs/telemetryforge/projects/5)** | Oct 2026 | LTS | Oct 2028 | 🟢 Active | `main` |
 | **[26.4](https://github.com/orgs/telemetryforge/projects/4)** | Apr 2026 | LTS | Apr 2028 | 🟢 Active | `release/26.4-lts` |
 | **[25.10](https://github.com/orgs/telemetryforge/projects/3)** | Oct 2025 | LTS | Oct 2027 | 🟢 Active | `release/25.10-lts` |
