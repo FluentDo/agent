@@ -168,6 +168,3 @@ jobs:
         with:
           # We want to fail the job
           advanced-security: false
-          # Only include our actions and nothing in the upstream source or dependencies
-          inputs: |
-            .github/
