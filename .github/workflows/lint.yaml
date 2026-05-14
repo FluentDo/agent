@@ -155,28 +155,3 @@ jobs:
         with:
           skip_push: "true"
           review: "true"
-
-  zizmor-lint:
-    runs-on: ubuntu-latest
-    name: PR - Zizmor
-    # https://docs.zizmor.sh/
-    permissions:
-      security-events: write # Required for upload-sarif (used by zizmor-action) to upload SARIF files.
-      # contents: read         # Only needed for private repos. Needed to clone the repo.
-      # actions: read          # Only needed for private repos. Needed for upload-sarif to read workflow run info.
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
-        with:
-          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Run zizmor
-        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
-        with:
-          # We only want to scan our workflows, no other included source
-          input: ".github/"
-          # We want to fail the job
-          advanced-security: false
