@@ -149,6 +149,7 @@ jobs:
   zizmor-lint:
     runs-on: ubuntu-latest
     name: PR - Zizmor
+    # https://docs.zizmor.sh/
     permissions:
       security-events: write   # Required for upload-sarif (used by zizmor-action) to upload SARIF files.
       # contents: read         # Only needed for private repos. Needed to clone the repo.
