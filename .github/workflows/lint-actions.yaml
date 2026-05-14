@@ -34,6 +34,7 @@ jobs:
         with:
           # We only want to scan our workflows, no other included source
           input: ".github/"
-          # We want to fail the job
-          advanced-security: false
+          # Upload to security tab in GitHub, requires permissions: security-events: write
+          # Note this does not fail the workflow, just uploads the results to the security tab in GitHub
+          advanced-security: true
           min-severities: "medium"
