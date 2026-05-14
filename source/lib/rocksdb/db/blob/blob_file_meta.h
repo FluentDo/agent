@@ -11,6 +11,9 @@
 #include <string>
 #include <unordered_set>
 
+// Required for more recent GCC 15
+#include <cstdint>
+
 #include "rocksdb/rocksdb_namespace.h"
 
 namespace ROCKSDB_NAMESPACE {
