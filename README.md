@@ -27,7 +27,8 @@ It also has built-in functionality for:
 
 | Version | Release Date | Type | End of Support | Status | Branch |
 | ------- | ------------ | ---- | -------------- | ------ | ------ |
-| **[26.10](https://github.com/orgs/telemetryforge/projects/5)** | Oct 2026 | LTS | Oct 2028 | 🟡 Planned | `main` |
+| **[26.10](https://github.com/orgs/telemetryforge/projects/6)** | Apr 2027 | LTS | Apr 2029 | 🟡 Planned | `main` |
+| **[26.10](https://github.com/orgs/telemetryforge/projects/5)** | Oct 2026 | LTS | Oct 2028 | 🟢 Active | `main` |
 | **[26.4](https://github.com/orgs/telemetryforge/projects/4)** | Apr 2026 | LTS | Apr 2028 | 🟢 Active | `release/26.4-lts` |
 | **[25.10](https://github.com/orgs/telemetryforge/projects/3)** | Oct 2025 | LTS | Oct 2027 | 🟢 Active | `release/25.10-lts` |
 | 25.07 | Jul 2025 | Regular | Jan 2026 | 🔴 EOL | |
@@ -41,7 +42,7 @@ Once it transitions to an LTS release then we maintain the major and minor versi
 | ------------ | --------- | ----------- |
 | **LTS Release** | Twice yearly (April, October) | Long-term support for 24 months |
 | **Regular Release** | Quarterly | 6-month support cycle |
-| **Security Updates** | Weekly | CVE patches and critical fixes |
+| **Security Updates** | Monthly or as needed | CVE patches and critical fixes |
 | **Patch Release** | As needed | Bug fixes and minor updates |
 | **Main Builds** | Weekly | Latest development builds from main branch |
 

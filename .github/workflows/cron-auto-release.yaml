@@ -2,11 +2,11 @@ name: Tag a new release
 on:
   schedule:
     # 25.10 releases
-    - cron: "0 10 * * 1"
+    - cron: "0 14 1 * *"
     # 26.4 releases
-    - cron: "0 14 * * 1"
+    - cron: "0 14 15 * *"
     # Latest releases
-    - cron: "0 10 * * 2"
+    - cron: "0 10 * * 1"
   workflow_dispatch:
     inputs:
       branch:
