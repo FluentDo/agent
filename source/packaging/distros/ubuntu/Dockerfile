@@ -327,7 +327,7 @@ RUN mkdir -p "${CMAKE_HOME}" && \
 ENV PATH="${CMAKE_HOME}/bin:${PATH}"
 
 # ubuntu/26.04.arm64v8 base image
-FROM arm64v8/ubuntu:24.04 AS ubuntu-26.04.arm64v8-base
+FROM arm64v8/ubuntu:26.04 AS ubuntu-26.04.arm64v8-base
 ENV DEBIAN_FRONTEND="noninteractive" \
     CMAKE_HOME="/opt/cmake"
 
