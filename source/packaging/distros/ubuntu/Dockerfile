@@ -206,7 +206,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2204-${CAC
 RUN mkdir -p "${CMAKE_HOME}" && \
     cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
     echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
-    curl -jksSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
 
 ENV PATH="${CMAKE_HOME}/bin:${PATH}"
 
@@ -236,7 +236,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2204-arm64
 RUN mkdir -p "${CMAKE_HOME}" && \
     cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
     echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
-    curl -jksSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
 
 ENV PATH="${CMAKE_HOME}/bin:${PATH}"
 
@@ -264,7 +264,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2404-${CAC
 RUN mkdir -p "${CMAKE_HOME}" && \
     cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
     echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
-    curl -jksSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
 
 ENV PATH="${CMAKE_HOME}/bin:${PATH}"
 
@@ -294,7 +294,65 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2404-arm64
 RUN mkdir -p "${CMAKE_HOME}" && \
     cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
     echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
-    curl -jksSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+
+ENV PATH="${CMAKE_HOME}/bin:${PATH}"
+
+# ubuntu/26.04 base image
+FROM ubuntu:26.04 AS ubuntu-26.04-base
+ENV DEBIAN_FRONTEND="noninteractive" \
+    CMAKE_HOME="/opt/cmake"
+
+ARG CMAKE_VERSION="3.31.6"
+ARG CMAKE_URL="https://github.com/Kitware/CMake/releases/download"
+
+ARG CACHE_ID
+# hadolint ignore=DL3008,DL3015
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2404-${CACHE_ID} \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked,id=ubuntu-2404-${CACHE_ID} \
+    apt-get update && \
+    apt-get install -y curl ca-certificates build-essential libsystemd-dev \
+    make bash wget unzip nano vim valgrind dh-make flex bison \
+    libsasl2-2 libsasl2-dev openssl libssl-dev libssl3 libcurl4-openssl-dev \
+    libyaml-dev pkg-config zlib1g-dev libgit2-dev \
+    tar gzip && \
+    apt-get install -y --reinstall lsb-base lsb-release
+
+# hadolint ignore=DL4001,DL4006
+RUN mkdir -p "${CMAKE_HOME}" && \
+    cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
+    echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
+
+ENV PATH="${CMAKE_HOME}/bin:${PATH}"
+
+# ubuntu/26.04.arm64v8 base image
+FROM arm64v8/ubuntu:24.04 AS ubuntu-26.04.arm64v8-base
+ENV DEBIAN_FRONTEND="noninteractive" \
+    CMAKE_HOME="/opt/cmake"
+
+COPY --from=multiarch-aarch64 /usr/bin/qemu-aarch64-static /usr/bin/qemu-aarch64-static
+
+ARG CMAKE_VERSION="3.31.6"
+ARG CMAKE_URL="https://github.com/Kitware/CMake/releases/download"
+
+ARG CACHE_ID
+# hadolint ignore=DL3008,DL3015
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=ubuntu-2404-arm64-${CACHE_ID} \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked,id=ubuntu-2404-arm64-${CACHE_ID} \
+    apt-get update && \
+    apt-get install -y curl ca-certificates build-essential libsystemd-dev \
+    make bash wget unzip nano vim valgrind dh-make flex bison \
+    libsasl2-2 libsasl2-dev openssl libssl-dev libssl3 libcurl4-openssl-dev \
+    libyaml-dev pkg-config zlib1g-dev libgit2-dev \
+    tar gzip && \
+    apt-get install -y --reinstall lsb-base lsb-release
+
+# hadolint ignore=DL4001,DL4006
+RUN mkdir -p "${CMAKE_HOME}" && \
+    cmake_download_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(uname -m).tar.gz" && \
+    echo "Downloading CMake ${CMAKE_VERSION}: ${cmake_download_url} -> ${CMAKE_HOME}" && \
+    curl -jsSL "${cmake_download_url}" | tar -xzf - -C "${CMAKE_HOME}" --strip-components 1
 
 ENV PATH="${CMAKE_HOME}/bin:${PATH}"
 
