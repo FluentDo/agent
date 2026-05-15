@@ -38,8 +38,11 @@ jobs:
               SANITIZE_ADDRESS=On
               SANITIZE_UNDEFINED=On
           - name: coverage
+            # Coverage needs more stack for some of the tests
+            # https://github.com/fluent/fluent-bit/pull/11614
             options: |
               FLB_COVERAGE=On
+              FLB_CORO_STACK_SIZE=4194304
           # Uncomment to enable additional config as needed
           # - name: memory
           #   options: |
