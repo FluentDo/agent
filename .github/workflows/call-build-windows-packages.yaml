@@ -120,6 +120,11 @@ jobs:
           C:\vcpkg\vcpkg install --recurse openssl --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
+      - name: Build zlib with vcpkg
+        run: |
+          C:\vcpkg\vcpkg install --recurse zlib --triplet ${{ matrix.config.vcpkg_triplet }}
+        shell: cmd
+
       - name: Build libyaml with vcpkg
         run: |
           C:\vcpkg\vcpkg install --recurse libyaml --triplet ${{ matrix.config.vcpkg_triplet }}
@@ -152,6 +157,7 @@ jobs:
 
       - name: Build hardened Fluent Bit packages
         run: |
+          $env:LIB = "C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}\lib;$env:LIB"
           cmake -G "NMake Makefiles" `
             -DCMAKE_VERBOSE_MAKEFILE=On `
             -DOPENSSL_ROOT_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
