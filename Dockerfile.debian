@@ -1,5 +1,4 @@
 # syntax=docker/dockerfile:1
-# check=skip=InvalidBaseImagePlatform
 
 # For multi-arch builds - assumption is running on an AMD64 host
 FROM multiarch/qemu-user-static:x86_64-arm AS qemu-arm32
