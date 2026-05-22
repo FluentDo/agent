@@ -47,7 +47,7 @@ jobs:
       VCPKG_LIBRARY_LINKAGE: static
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
@@ -115,17 +115,24 @@ jobs:
             ${{ runner.os }}-${{ matrix.config.arch }}-vcpkg-installed-
           enableCrossOsArchive: false
 
-      - name: Build openssl with vcpkg
+      - name: Install openssl with vcpkg
         run: |
           C:\vcpkg\vcpkg install --recurse openssl --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
-      - name: Build libyaml with vcpkg
+      - name: Install libyaml with vcpkg
         run: |
           C:\vcpkg\vcpkg install --recurse libyaml --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
-      - name: Build libgit2 with vcpkg
+      - name: Install zlib with vcpkg
+        run: |
+          C:\vcpkg\vcpkg install --recurse zlib --triplet ${{ matrix.config.vcpkg_triplet }}
+        shell: cmd
+
+      - name: Install libgit2 with vcpkg
+        # Note that this has a dependency on zlib we need to satisfy, ideally from our vendored version
+        # but that is not possible in this case without building from source.
         run: |
           C:\vcpkg\vcpkg install --recurse libgit2 --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
@@ -150,10 +157,12 @@ jobs:
           key: ${{ steps.cache-vcpkg-sources.outputs.cache-primary-key }}
           enableCrossOsArchive: false
 
-      - name: Build hardened Fluent Bit packages
+      - name: Configure build
         run: |
           cmake -G "NMake Makefiles" `
             -DCMAKE_VERBOSE_MAKEFILE=On `
+            -DCMAKE_TOOLCHAIN_FILE='C:\vcpkg\scripts\buildsystems\vcpkg.cmake' `
+            -DVCPKG_TARGET_TRIPLET='${{ matrix.config.vcpkg_triplet }}' `
             -DOPENSSL_ROOT_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
             ${{ matrix.config.cmake_additional_opt }} `
             -DFLB_LIBYAML_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
@@ -193,9 +202,25 @@ jobs:
             -DFLB_TRACE=Off `
             -DFLB_CHUNK_TRACE=Off `
             ../
+        working-directory: source/build
+
+      - name: Build hardened Fluent Bit packages
+        run: |
           cmake --build .
           cpack
         working-directory: source/build
+
+      - name: Debug build output
+        if: always()
+        continue-on-error: true
+        # Find all files in the build output directory and print them to the logs for debugging purposes
+        run: |
+          Get-ChildItem -Path source/build/**/*.log -Recurse | ForEach-Object {
+            Write-Host "Contents of $($_.FullName):"
+            Get-Content $_.FullName
+            Write-Host "End of $($_.FullName)"
+          }
+        shell: pwsh
 
       - name: Upload build packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
