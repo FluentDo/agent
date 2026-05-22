@@ -13,8 +13,8 @@ done
 SCRIPT_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 
 # Set this to /ubi to build UBI image, otherwise Debian image is built
-export FLUENTDO_AGENT_IMAGE=${FLUENTDO_AGENT_IMAGE:-ghcr.io/fluentdo/agent/ubi}
+export TELEMETRY_FORGE_AGENT_IMAGE=${TELEMETRY_FORGE_AGENT_IMAGE:-ghcr.io/telemetryforge/agent/ubi}
 # Set this to `local` to build and use a local image
-export FLUENTDO_AGENT_TAG=${FLUENTDO_AGENT_TAG:-local}
+export TELEMETRY_FORGE_AGENT_TAG=${TELEMETRY_FORGE_AGENT_TAG:-local}
 
 "$SCRIPT_DIR"/testing/bats/run-k8s-integration-tests.sh
