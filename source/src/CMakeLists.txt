@@ -276,6 +276,10 @@ if(FLB_STATIC_CONF)
     )
 endif()
 
+if(FLB_SYSTEM_WINDOWS)
+  find_package(ZLIB REQUIRED)
+endif()
+
 include(CheckSymbolExists)
 check_symbol_exists(accept4 "sys/socket.h" HAVE_ACCEPT4)
 
@@ -288,7 +292,7 @@ if(FLB_SYSTEM_WINDOWS)
     "Shlwapi.lib"
     "winhttp.lib"
     "rpcrt4.lib"
-    "zlib.lib"
+    ZLIB::ZLIB
     "pcre.lib"
     )
 else()

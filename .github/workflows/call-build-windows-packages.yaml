@@ -125,6 +125,11 @@ jobs:
           C:\vcpkg\vcpkg install --recurse libyaml --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
+      - name: Install zlib with vcpkg
+        run: |
+          C:\vcpkg\vcpkg install --recurse zlib --triplet ${{ matrix.config.vcpkg_triplet }}
+        shell: cmd
+
       - name: Install libgit2 with vcpkg
         # Note that this has a dependency on zlib we need to satisfy, ideally from our vendored version
         # but that is not possible in this case without building from source.
@@ -156,6 +161,8 @@ jobs:
         run: |
           cmake -G "NMake Makefiles" `
             -DCMAKE_VERBOSE_MAKEFILE=On `
+            -DCMAKE_TOOLCHAIN_FILE='C:\vcpkg\scripts\buildsystems\vcpkg.cmake' `
+            -DVCPKG_TARGET_TRIPLET='${{ matrix.config.vcpkg_triplet }}' `
             -DOPENSSL_ROOT_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
             ${{ matrix.config.cmake_additional_opt }} `
             -DFLB_LIBYAML_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
