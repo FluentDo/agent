@@ -2,7 +2,8 @@ FROM registry.access.redhat.com/ubi10:10.2 AS base-builder
 
 # hadolint ignore=DL3041
 RUN dnf update -y && \
-    dnf install -y cmake3 diffutils gcc gcc-c++ git m4 make openssl-devel patch systemd-devel tar unzip libyaml-devel cyrus-sasl-devel zlib-devel pcre2-devel && \
+    dnf install -y cmake3 diffutils gcc gcc-c++ git m4 make openssl-devel patch systemd-devel tar unzip \
+    libyaml-devel cyrus-sasl-devel zlib-devel pcre2-devel libzstd-devel && \
     dnf clean all && rm -rf /var/cache/dnf
 
 # Provide the dependencies for record accessor built from source
@@ -28,6 +29,7 @@ RUN curl -LO https://www.libssh2.org/download/libssh2-${LIBSSH2_VER}.tar.gz && \
 WORKDIR /tmp/libssh2-${LIBSSH2_VER}
 RUN ./configure --with-openssl --prefix=/usr/local --disable-examples-build && \
     make -j "$(getconf _NPROCESSORS_ONLN)" && make install && \
+    echo "/usr/local/lib" > /etc/ld.so.conf.d/libssh2.conf && \
     ldconfig
 
 # Build libgit2 from source

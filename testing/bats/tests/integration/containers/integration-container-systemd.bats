@@ -26,7 +26,7 @@ setup() {
         --user=0 \
         -v "$journal_dir":"$journal_dir":ro \
         "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}" \
-        -v -i systemd --prop="path=$journal_dir" -o stdout -o exit --prop="time_count=10"
+        -v -i systemd --prop="path=$journal_dir" -o exit --prop="time_count=10" -m '*' -o exit --prop="record_count=1" -m '*'
     assert_success
     refute_output --partial "SIGSEGV"
     refute_output --partial "[error]"

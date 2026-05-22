@@ -17,4 +17,17 @@ export TELEMETRY_FORGE_AGENT_IMAGE=${TELEMETRY_FORGE_AGENT_IMAGE:-ghcr.io/teleme
 # Set this to `local` to build and use a local image
 export TELEMETRY_FORGE_AGENT_TAG=${TELEMETRY_FORGE_AGENT_TAG:-local}
 
-"$SCRIPT_DIR"/testing/bats/run-k8s-integration-tests.sh
+# Extract the last section of the image name to use as the suffix for the Dockerfile to use, i.e. Dockerfile.ubi or Dockerfile.debian
+if [[ "$TELEMETRY_FORGE_AGENT_IMAGE" == *"ubi" ]]; then
+    echo "INFO: Building UBI image"
+    DOCKERFILE="Dockerfile.ubi"
+else
+    echo "INFO: Building Debian image"
+    DOCKERFILE="Dockerfile.debian"
+fi
+
+${CONTAINER_RUNTIME:-docker} build --target=production \
+  -t "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}" \
+  -f "$SCRIPT_DIR/$DOCKERFILE" "$SCRIPT_DIR/"
+
+"$SCRIPT_DIR"/testing/bats/run-container-integration-tests.sh
