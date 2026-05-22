@@ -19,6 +19,10 @@ on:
         type: string
         default: "main"
 
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   linux-unit-tests:
     name: Run unit tests for ${{ matrix.config.name }}
@@ -34,8 +38,11 @@ jobs:
               SANITIZE_ADDRESS=On
               SANITIZE_UNDEFINED=On
           - name: coverage
+            # Coverage needs more stack for some of the tests
+            # https://github.com/fluent/fluent-bit/pull/11614
             options: |
               FLB_COVERAGE=On
+              FLB_CORO_STACK_SIZE=4194304
           # Uncomment to enable additional config as needed
           # - name: memory
           #   options: |
@@ -44,8 +51,13 @@ jobs:
           #   options: |
           #       SANITIZE_THREAD=On
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
@@ -64,7 +76,7 @@ jobs:
         shell: bash
 
       - name: Install cmake
-        uses: jwlawson/actions-setup-cmake@v2
+        uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
         with:
           cmake-version: "3.31.6"
 
@@ -92,7 +104,7 @@ jobs:
         shell: bash
 
       - name: Configure tests
-        uses: threeal/cmake-action@v2.1.0
+        uses: threeal/cmake-action@725d1314ccf9ea922805d7e3f9d9bcbca892b406 # v2.1.0
         with:
           source-dir: source
           build-dir: source/build
@@ -100,6 +112,7 @@ jobs:
             CMAKE_BUILD_TYPE=Debug
             CMAKE_EXPORT_COMPILE_COMMANDS=On
 
+            TELEMETRY_FORGE_AGENT_TESTS=On
             FLUENTDO_AGENT_TESTS=On
             FLB_TESTS_INTERNAL=On
             FLB_TESTS_RUNTIME=On
@@ -138,7 +151,7 @@ jobs:
           gcovr --object-directory . --root .. --gcov-ignore-parse-errors --gcov-ignore-errors \
             --sort uncovered-percent \
             --xml=cobertura.xml \
-            --html=coverage.html --html-title='FluentDo Agent Test Coverage Report' \
+            --html=coverage.html --html-title='Agent Test Coverage Report' \
             --json=coverage.json \
             --txt=coverage.txt \
             --print-summary
@@ -148,7 +161,7 @@ jobs:
         # Failures here should not fail the whole job
         continue-on-error: true
         if: matrix.config.name == 'coverage'
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@5cbfd81b66ca5d10c19b062c04de0199c215fb6e # v2.3.7
         with:
           file: source/build/cobertura.xml
           format: cobertura
@@ -156,7 +169,7 @@ jobs:
 
       - name: Upload coverage reports
         if: matrix.config.name == 'coverage'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-reports
           path: |
@@ -186,8 +199,13 @@ jobs:
     # Add additional jobs here as required that must complete
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@release/v1
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           # Add any jobs that can be skipped here to avoid failure of this job
           # allowed-skips: build-linux,build-windows

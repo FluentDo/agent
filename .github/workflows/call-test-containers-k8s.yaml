@@ -10,7 +10,7 @@ on:
       image:
         description: The full image name to test.
         required: false
-        default: "ghcr.io/fluentdo/agent"
+        default: "ghcr.io/telemetryforge/agent"
         type: string
       image-tag:
         description: The image tag to test.
@@ -24,39 +24,51 @@ on:
       github-token:
         description: Token to use to pull images from GitHub Container Registry.
         required: true
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   test-containers:
     name: Test K8S version ${{ inputs.kind-version }} with ${{ inputs.image }}:${{ inputs.image-tag }}
     runs-on: ubuntu-latest
     env:
+      KIND_VERSION: ${{ inputs.kind-version }}
+      TELEMETRY_FORGE_AGENT_IMAGE: ${{ inputs.image }}
+      TELEMETRY_FORGE_AGENT_TAG: ${{ inputs.image-tag }}
+      # Support legacy image and tag variables for backwards compatibility
       FLUENTDO_AGENT_IMAGE: ${{ inputs.image }}
       FLUENTDO_AGENT_TAG: ${{ inputs.image-tag }}
-      KIND_VERSION: ${{ inputs.kind-version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
-          repository: FluentDo/agent
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: telemetryforge/agent
           ref: ${{ inputs.ref || github.ref }}
           token: ${{ secrets.github-token }}
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.github-token }}
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: v3.19.2
 
       - name: Set up Kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
 
       - name: Create k8s Kind Cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           # To fix an issue with loading multi-arch images
@@ -64,8 +76,9 @@ jobs:
           version: v0.30.0
 
       - name: Install BATS
-        uses: bats-core/bats-action@3.0.1
+        uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # 4.0.0
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           assert-install: false
           detik-install: false
           file-install: false

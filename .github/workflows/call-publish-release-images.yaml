@@ -1,114 +1,130 @@
 name: Reusable workflow to publish release images to appropriate locations
 on:
-    workflow_call:
-        inputs:
-            version:
-                description: The container tag to promote to the various registries.
-                type: string
-                required: true
-        secrets:
-            github-token:
-                required: true
+  workflow_call:
+    inputs:
+      version:
+        description: The container tag to promote to the various registries.
+        type: string
+        required: true
+    secrets:
+      github-token:
+        required: true
 env:
-    UBI_IMAGE_NAME: ghcr.io/fluentdo/agent/ubi
-    DISTROLESS_IMAGE_NAME: ghcr.io/fluentdo/agent/debian
+  UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
+  DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
 jobs:
-    promote-ghcr-images:
-        name: Promote container images to top-level ghcr.io registries
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            packages: write
+  promote-ghcr-images:
+    name: Promote container images to top-level ghcr.io registries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      OUTPUT_IMAGE_NAME: ghcr.io/telemetryforge/agent
+      TAG: ${{ inputs.version }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.github-token }}
+
+      - name: Promote UBI images
+        run: |
+          docker pull "$UBI_IMAGE_NAME:$TAG"
+          docker run --rm  \
+            quay.io/skopeo/stable:latest \
+            copy \
+              --all \
+              --retry-times 10 \
+              --src-no-creds \
+              --dest-creds "$DEST_CREDS" \
+              "docker://$UBI_IMAGE_NAME:$TAG" \
+              "docker://$OUTPUT_IMAGE_NAME:$TAG"
         env:
-            OUTPUT_IMAGE_NAME: ghcr.io/fluentdo/agent
-            TAG: ${{ inputs.version }}
-        steps:
-            - name: Log in to the Container registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.github-token }}
+          DEST_CREDS: ${{ github.actor }}:${{ secrets.github-token }}
+        shell: bash
 
-            - name: Promote UBI images
-              run: |
-                  docker pull "$UBI_IMAGE_NAME:$TAG"
-                  docker run --rm  \
-                    quay.io/skopeo/stable:latest \
-                    copy \
-                      --all \
-                      --retry-times 10 \
-                      --src-no-creds \
-                      --dest-creds "$DEST_CREDS" \
-                      "docker://$UBI_IMAGE_NAME:$TAG" \
-                      "docker://$OUTPUT_IMAGE_NAME:$TAG"
-              env:
-                  DEST_CREDS: ${{ github.actor }}:${{ secrets.github-token }}
-              shell: bash
-
-            - name: Promote distroless images
-              run: |
-                  docker pull "$DISTROLESS_IMAGE_NAME:$TAG"
-                  docker run --rm  \
-                    quay.io/skopeo/stable:latest \
-                    copy \
-                      --all \
-                      --retry-times 10 \
-                      --src-no-creds \
-                      --dest-creds "$DEST_CREDS" \
-                      "docker://$DISTROLESS_IMAGE_NAME:$TAG" \
-                      "docker://$OUTPUT_IMAGE_NAME:${TAG:?}-slim"
-              env:
-                  DEST_CREDS: ${{ github.actor }}:${{ secrets.github-token }}
-              shell: bash
-
-    promote-redhat-catalog-images:
-        name: Promote UBI image to Red Hat catalog
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            packages: read
-            # Required for GCP secrets access
-            id-token: write
+      - name: Promote distroless images
+        run: |
+          docker pull "$DISTROLESS_IMAGE_NAME:$TAG"
+          docker run --rm  \
+            quay.io/skopeo/stable:latest \
+            copy \
+              --all \
+              --retry-times 10 \
+              --src-no-creds \
+              --dest-creds "$DEST_CREDS" \
+              "docker://$DISTROLESS_IMAGE_NAME:$TAG" \
+              "docker://$OUTPUT_IMAGE_NAME:${TAG:?}-slim"
         env:
-          # We must match up the official image we have used for publishing upstream
-          RHEL_SOURCE_IMAGE: ghcr.io/fluentdo/agent
-        needs:
-          # We must use the top-level image here - see above
-          - promote-ghcr-images
-        steps:
-            - name: Log in to the Container registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.github-token }}
+          DEST_CREDS: ${{ github.actor }}:${{ secrets.github-token }}
+        shell: bash
 
-            - name: Set up preflight binary
-              uses: redhat-actions/openshift-tools-installer@v1
-              with:
-                preflight: latest
-                source: github
+  promote-redhat-catalog-images:
+    name: Promote UBI image to Red Hat catalog
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      # Required for GCP secrets access
+      id-token: write
+    env:
+      # We must match up the official image we have used for publishing upstream
+      RHEL_SOURCE_IMAGE: ghcr.io/telemetryforge/agent
+    needs:
+      # We must use the top-level image here - see above
+      - promote-ghcr-images
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
-            - name: Authenticate with GCP
-              uses: google-github-actions/auth@v3
-              with:
-                workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
-                service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
+      - name: Log in to the Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.github-token }}
 
-            - name: Get Red Hat API key
-              id: get-secrets
-              # This step retrieves secrets from GCP Secret Manager and sets them as outputs
-              # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
-              uses: "google-github-actions/get-secretmanager-secrets@v3"
-              with:
-                secrets: |-
-                    redhat-api-key:projects/626836145334/secrets/RHEL_AGENT_PUBLISH_API_KEY
+      - name: Set up preflight binary
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1.13.1
+        with:
+          preflight: latest
+          source: github
 
-            - name: Submit container to Red Hat for certification
-              run: |
-                preflight check container \
-                    --certification-component-id 68e14199529ca9e0c382582c \
-                    --pyxis-api-token '${{ steps.get-secrets.outputs.redhat-api-key }}' \
-                    --submit $RHEL_SOURCE_IMAGE:${{ inputs.version }}
-              shell: bash
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+          service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
+
+      - name: Get Red Hat API key
+        id: get-secrets
+        # This step retrieves secrets from GCP Secret Manager and sets them as outputs
+        # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+        with:
+          secrets: |-
+            redhat-api-key:projects/626836145334/secrets/RHEL_AGENT_PUBLISH_API_KEY
+
+      - name: Submit container to Red Hat for certification
+        run: |
+          preflight check container \
+              --certification-component-id 68e14199529ca9e0c382582c \
+              --pyxis-api-token '${{ steps.get-secrets.outputs.redhat-api-key }}' \
+              --submit $RHEL_SOURCE_IMAGE:${{ inputs.version }}
+        shell: bash

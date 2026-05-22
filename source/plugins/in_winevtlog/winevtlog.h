@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2019-2021 The Fluent Bit Authors
+ *  Copyright (C) 2019-2026 The Fluent Bit Authors
  *  Copyright (C) 2015-2018 Treasure Data Inc.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +27,15 @@
 
 struct winevtlog_session;
 
+/* reconnect backoff */
+struct winevtlog_backoff {
+    DWORD base_ms;
+    DWORD max_ms;
+    DWORD multiplier_x1000;
+    DWORD jitter_pct;
+    DWORD max_retries;
+};
+
 struct winevtlog_config {
     unsigned int interval_sec;
     unsigned int interval_nsec;
@@ -34,8 +43,10 @@ struct winevtlog_config {
     int string_inserts;
     int read_existing_events;
     int render_event_as_xml;
+    int render_event_as_text;
     int use_ansi;
     int ignore_missing_channels;
+    flb_sds_t render_event_text_key;
     flb_sds_t event_query;
     flb_sds_t remote_server;
     flb_sds_t remote_domain;
@@ -48,6 +59,8 @@ struct winevtlog_config {
     flb_pipefd_t coll_fd;
     struct flb_input_instance *ins;
     struct flb_log_event_encoder *log_encoder;
+    struct winevtlog_backoff backoff;
+    flb_sds_t backoff_multiplier_str;
 };
 
 /* Some channels has very heavy contents for 10 events at same time.
@@ -63,6 +76,14 @@ struct winevtlog_channel {
     EVT_HANDLE events[SUBSCRIBE_ARRAY_SIZE];
     int count;
     struct winevtlog_session *session;
+
+    /* reconnect */
+    BOOL   cancelled_by_us;
+    BOOL   reconnect_needed;
+    DWORD  last_error;
+    DWORD  retry_attempts;
+    ULONGLONG next_retry_deadline;
+    ULONGLONG prng_state;
 
     char *name;
     char *query;
@@ -114,6 +135,9 @@ void winevtlog_close_all(struct mk_list *list);
 void winevtlog_pack_xml_event(WCHAR *system_xml, WCHAR *message,
                               PEVT_VARIANT string_inserts, UINT count_inserts, struct winevtlog_channel *ch,
                               struct winevtlog_config *ctx);
+void winevtlog_pack_text_event(PEVT_VARIANT system, WCHAR *message,
+                               PEVT_VARIANT string_inserts, UINT count_inserts, struct winevtlog_channel *ch,
+                               struct winevtlog_config *ctx);
 void winevtlog_pack_event(PEVT_VARIANT system, WCHAR *message,
                           PEVT_VARIANT string_inserts, UINT count_inserts, struct winevtlog_channel *ch,
                           struct winevtlog_config *ctx);
@@ -123,6 +147,11 @@ void winevtlog_pack_event(PEVT_VARIANT system, WCHAR *message,
  */
 int winevtlog_sqlite_load(struct winevtlog_channel *ch, struct winevtlog_config *ctx, struct flb_sqldb *db);
 int winevtlog_sqlite_save(struct winevtlog_channel *ch, struct winevtlog_config *ctx, struct flb_sqldb *db);
+
+/* Non blocking reconnection utilities */
+int   winevtlog_try_reconnect(struct winevtlog_channel *ch, struct winevtlog_config *ctx);
+void  winevtlog_schedule_retry(struct winevtlog_channel *ch, struct winevtlog_config *ctx);
+void  winevtlog_request_cancel(struct winevtlog_channel *ch);
 
 /*
  * SQL templates

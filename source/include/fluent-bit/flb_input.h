@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -52,6 +52,8 @@
 
 #include <cmetrics/cmetrics.h>
 #include <monkey/mk_core.h>
+#include <cfl/cfl.h>
+
 #include <msgpack.h>
 #include <inttypes.h>
 
@@ -335,10 +337,10 @@ struct flb_input_instance {
 
     struct mk_list _head;                /* link to config->inputs     */
 
-    struct mk_list routes_direct;        /* direct routes set by API   */
-    struct mk_list routes;               /* flb_router_path's list     */
-    struct mk_list properties;           /* properties / configuration */
-    struct mk_list collectors;           /* collectors                 */
+    struct cfl_list routes_direct;        /* direct routes set by API   */
+    struct cfl_list routes;               /* flb_router_path's list     */
+    struct mk_list  properties;           /* properties / configuration */
+    struct mk_list  collectors;           /* collectors                 */
 
     /* Storage Chunks */
     struct mk_list chunks;               /* linked list of all chunks  */
@@ -379,6 +381,8 @@ struct flb_input_instance {
      * in the ring buffer.
      */
     struct flb_ring_buffer *rb;
+    size_t ring_buffer_size;           /* ring buffer size */
+    uint8_t ring_buffer_window;        /* ring buffer window percentage */
 
     /* List of upstreams */
     struct mk_list upstreams;

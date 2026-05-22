@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -260,6 +260,16 @@ static struct flb_config_map config_map[] = {
      FLB_CONFIG_MAP_STR, "tag_key", NULL,
      0, FLB_TRUE, offsetof(struct flb_splunk, tag_key),
      ""
+    },
+    {
+     FLB_CONFIG_MAP_BOOL, "add_remote_addr", "false",
+     0, FLB_TRUE, offsetof(struct flb_splunk, add_remote_addr),
+     "Inject a remote address using the X-Forwarded-For header or connection address"
+    },
+    {
+     FLB_CONFIG_MAP_STR, "remote_addr_key", "remote_addr",
+     0, FLB_TRUE, offsetof(struct flb_splunk, remote_addr_key),
+     "Set a record key for storing the remote address"
     },
 
 

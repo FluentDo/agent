@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2025 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ flb_ctx_t *ctx;
 struct flb_config *config;
 volatile sig_atomic_t exit_signal = 0;
 volatile sig_atomic_t flb_bin_restarting = FLB_RELOAD_IDLE;
+volatile sig_atomic_t dump_requested = 0;
 
 #ifdef FLB_HAVE_LIBBACKTRACE
 struct flb_stacktrace flb_st;
@@ -613,7 +614,7 @@ static void flb_signal_handler(int signal)
         abort();
 #ifndef FLB_SYSTEM_WINDOWS
     case SIGCONT:
-        flb_dump(ctx->config);
+        dump_requested = 1;
         break;
 #ifndef FLB_HAVE_STATIC_CONF
     case SIGHUP:
@@ -880,6 +881,12 @@ int flb_main(int argc, char **argv)
     /* Create Fluent Bit context */
     ctx = flb_create();
     if (!ctx) {
+        flb_cf_destroy(cf_opts);
+#ifdef FLB_HAVE_CHUNK_TRACE
+        if (trace_output) {
+            flb_free(trace_output);
+        }
+#endif
         exit(EXIT_FAILURE);
     }
     config = ctx->config;
@@ -1224,6 +1231,12 @@ int flb_main(int argc, char **argv)
 #ifdef FLB_SYSTEM_WINDOWS
         flb_console_handler_set_ctx(ctx, cf_opts);
 #endif
+        if (dump_requested &&
+            ctx != NULL && ctx->config != NULL) {
+            dump_requested = 0;
+            flb_dump(ctx->config);
+        }
+
         if (flb_bin_restarting == FLB_RELOAD_IN_PROGRESS) {
             /* reload by using same config files/path */
             ret = flb_reload(ctx, cf_opts);

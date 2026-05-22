@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -537,8 +537,10 @@ static char *dirname(char *path)
     ptr = strrchr(path, '\\');
 
     if (ptr == NULL) {
-        return path;
+        /* No directory component */
+        return ".";
     }
+
     *ptr++='\0';
     return path;
 }
@@ -916,9 +918,10 @@ static enum status state_copy_into_properties(struct parser_state *state, struct
     struct cfl_list *head;
     struct cfl_kvpair *kvp;
     struct cfl_variant *var;
-    struct cfl_variant *variant;
     struct cfl_array *arr;
-    int idx;
+    size_t idx;
+    size_t entry_count;
+    int array_all_strings;
 
     cfl_list_foreach(head, &state->keyvals->list) {
         kvp = cfl_list_entry(head, struct cfl_kvpair, _head);
@@ -937,93 +940,57 @@ static enum status state_copy_into_properties(struct parser_state *state, struct
             }
             break;
         case CFL_VARIANT_ARRAY:
-            /* For variant arrays from filter/processor sections, create a deep copy and insert directly */
-            {
-                struct cfl_array *src_array = kvp->val->data.as_array;
-                struct cfl_array *new_array = cfl_array_create(src_array->entry_count);
+            entry_count = kvp->val->data.as_array->entry_count;
+            array_all_strings = 1;
 
-                if (new_array == NULL) {
-                    flb_error("unable to create array for variant property");
+            for (idx = 0; idx < entry_count; idx++) {
+                var = cfl_array_fetch_by_index(kvp->val->data.as_array, idx);
+                if (var == NULL || var->type != CFL_VARIANT_STRING) {
+                    array_all_strings = 0;
+                    break;
+                }
+            }
+
+            if (array_all_strings == 1) {
+                arr = flb_cf_section_property_add_list(conf, properties,
+                                                        kvp->key, cfl_sds_len(kvp->key));
+
+                if (arr == NULL) {
+                    flb_error("unable to add property list");
                     return YAML_FAILURE;
                 }
-                cfl_array_resizable(new_array, CFL_TRUE);
 
-                /* Deep copy all array elements */
-                for (idx = 0; idx < src_array->entry_count; idx++) {
-                    var = cfl_array_fetch_by_index(src_array, idx);
-                    if (var == NULL) {
-                        flb_error("unable to retrieve from array by index");
-                        cfl_array_destroy(new_array);
-                        return YAML_FAILURE;
-                    }
+                for (idx = 0; idx < entry_count; idx++) {
+                    var = cfl_array_fetch_by_index(kvp->val->data.as_array, idx);
 
-                    switch (var->type) {
-                    case CFL_VARIANT_STRING:
-                        if (cfl_array_append_string(new_array, var->data.as_string) < 0) {
-                            flb_error("unable to append string to array");
-                            cfl_array_destroy(new_array);
-                            return YAML_FAILURE;
-                        }
-                        break;
-                    case CFL_VARIANT_KVLIST:
-                        {
-                            struct cfl_kvlist *kvlist_copy = kvlist_deep_copy(var->data.as_kvlist);
-                            if (kvlist_copy == NULL) {
-                                flb_error("unable to deep copy kvlist in array");
-                                cfl_array_destroy(new_array);
-                                return YAML_FAILURE;
-                            }
-                            if (cfl_array_append_kvlist(new_array, kvlist_copy) < 0) {
-                                flb_error("unable to append kvlist to array");
-                                cfl_kvlist_destroy(kvlist_copy);
-                                cfl_array_destroy(new_array);
-                                return YAML_FAILURE;
-                            }
-                        }
-                        break;
-                    default:
-                        flb_error("unsupported array element type: %d", var->type);
-                        cfl_array_destroy(new_array);
+                    if (cfl_array_append_string(arr, var->data.as_string) < 0) {
+                        flb_error("unable to append string to array");
                         return YAML_FAILURE;
                     }
                 }
-
-                /* Create variant from the new array and insert it */
-                variant = cfl_variant_create_from_array(new_array);
-                if (variant == NULL) {
-                    flb_error("unable to create variant from array");
-                    cfl_array_destroy(new_array);
+            }
+            else {
+                if (flb_cf_section_property_add_variant(conf,
+                                                         properties,
+                                                         kvp->key,
+                                                         cfl_sds_len(kvp->key),
+                                                         kvp->val) == NULL) {
+                    flb_error("unable to add variant property");
                     return YAML_FAILURE;
                 }
-
-                if (cfl_kvlist_insert(properties, kvp->key, variant) < 0) {
-                    flb_error("unable to insert array variant property");
-                    cfl_variant_destroy(variant);
-                    return YAML_FAILURE;
-                }
+                kvp->val = NULL;
             }
             break;
         case CFL_VARIANT_KVLIST:
-            /* Handle variant objects (nested properties) */
-            /* Create a deep copy of the kvlist to avoid use-after-free */
-            {
-                struct cfl_kvlist *kvlist_copy = kvlist_deep_copy(kvp->val->data.as_kvlist);
-                if (kvlist_copy == NULL) {
-                    flb_error("unable to deep copy kvlist");
-                    return YAML_FAILURE;
-                }
-                variant = cfl_variant_create_from_kvlist(kvlist_copy);
-                if (variant == NULL) {
-                    flb_error("unable to create variant for kvlist");
-                    cfl_kvlist_destroy(kvlist_copy);
-                    return YAML_FAILURE;
-                }
-                if (cfl_kvlist_insert(properties, kvp->key, variant) < 0) {
-                    flb_error("unable to add variant property");
-                    cfl_variant_destroy(variant);
-                    return YAML_FAILURE;
-                }
+            if (flb_cf_section_property_add_variant(conf,
+                                                     properties,
+                                                     kvp->key,
+                                                     cfl_sds_len(kvp->key),
+                                                     kvp->val) == NULL) {
+                flb_error("unable to add variant property");
+                return YAML_FAILURE;
             }
+            kvp->val = NULL;
             break;
         default:
             flb_error("unknown value type for properties: %d", kvp->val->type);
@@ -2215,6 +2182,11 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
                 /* Use variants for processors and filters to support complex nested structures */
                 state = state_push_variant(ctx, state, 0);
             }
+            else if (strcmp(state->key, "routes") == 0 ||
+                     strcmp(state->key, "processors") == 0 ||
+                     strcmp(state->key, "filters") == 0) {
+                state = state_push_variant(ctx, state, 0);
+            }
             else {
                 state = state_push_witharr(ctx, state, STATE_PLUGIN_VAL_LIST);
             }
@@ -2225,8 +2197,32 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
             }
             break;
         case YAML_MAPPING_START_EVENT:
+
+            if (strcmp(state->key, "processors") == 0) {
+                struct flb_cf_group *group;
+
+                group = flb_cf_group_create(conf, state->cf_section,
+                                             state->key,
+                                             strlen(state->key));
+
+                if (group == NULL) {
+                    flb_error("unable to create processors group");
+                    return YAML_FAILURE;
+                }
+
+                state->cf_group = group;
+                state = state_push(ctx, STATE_INPUT_PROCESSORS);
+
+                if (state == NULL) {
+                    flb_error("unable to allocate state");
+                    return YAML_FAILURE;
+                }
+
+                break;
+            }
+
             if (state->section == SECTION_PROCESSOR || state->section == SECTION_FILTER) {
-                /* when in a processor or filter section, allow plugins to have nested
+                /* when in a processor or filter section, we allow plugins to have nested
                  * properties which are returned as a cfl_variant */
                 state = state_push_variant(ctx, state, 1);
 
@@ -2237,15 +2233,12 @@ static int consume_event(struct flb_cf *conf, struct local_ctx *ctx,
                 break;
             }
 
-            if (strcmp(state->key, "processors") == 0) {
-                state = state_push(ctx, STATE_INPUT_PROCESSORS);
+            if (strcmp(state->key, "routes") == 0 ||
+                strcmp(state->key, "processors") == 0 ) {
+                state = state_push_variant(ctx, state, 1);
 
                 if (state == NULL) {
                     flb_error("unable to allocate state");
-                    return YAML_FAILURE;
-                }
-
-                if (state_create_group(conf, state, "processors") == YAML_FAILURE) {
                     return YAML_FAILURE;
                 }
                 break;

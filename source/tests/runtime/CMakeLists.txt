@@ -60,6 +60,7 @@ if(FLB_OUT_LIB)
   FLB_RT_TEST(FLB_IN_FLUENTBIT_METRICS "in_fluentbit_metrics.c")
   FLB_RT_TEST(FLB_IN_PROMETHEUS_TEXTFILE "in_prometheus_textfile.c")
   FLB_RT_TEST(FLB_IN_KUBERNETES_EVENTS "in_kubernetes_events.c")
+  FLB_RT_TEST(FLB_IN_OPENTELEMETRY "in_opentelemetry_routing.c")
   if (FLB_IN_SYSTEMD)
     FLB_RT_TEST(FLB_IN_SYSTEMD        "in_systemd.c")
   endif ()
@@ -212,6 +213,11 @@ endif()
 
 if (FLB_PROCESSOR_CONTENT_MODIFIER)
   FLB_RT_TEST(FLB_PROCESSOR_CONTENT_MODIFIER "processor_content_modifier.c")
+endif()
+
+if (FLB_IN_DUMMY AND FLB_IN_FLUENTBIT_METRICS AND FLB_OUT_LIB AND
+    FLB_OUT_STDOUT AND FLB_FILTER_LUA)
+  FLB_RT_CORE_TEST(ON "processor_output_counters.c")
 endif()
 
 # HTTP Client Debug (requires -DFLB_HTTP_CLIENT_DEBUG=On)

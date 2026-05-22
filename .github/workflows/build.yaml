@@ -13,6 +13,14 @@ on:
       - release/**
     tags:
       - v*
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+# Default to least permissions and then we can add as needed for each job.
+# This is a secure by default approach and also makes it easier to reason
+# about permissions for each job since they are not implicit from the workflow
+permissions: read-all
 
 # Cancel any running jobs for PRs on a new commit
 concurrency:
@@ -33,11 +41,16 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
       oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Debug
-        uses: raven-actions/debug@v1
+        uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
 
       - name: Simple variable for type of build, i.e. release or staging
         id: set-build-type
@@ -62,7 +75,15 @@ jobs:
         # Look for the default line in the Dockerfile
         id: set-version
         run: |
-          VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+          # Support LTS version for backwards compatibility, but default to the new version variable
+          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
+              echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
+              VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+          else
+              echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
+              VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+          fi
+
           # For releases we use the tag
           if [[ '${{ steps.set-build-type.outputs.build-type }}' == 'release' ]]; then
               TAG_NAME=${GITHUB_REF#refs/tags/}
@@ -106,8 +127,8 @@ jobs:
       fail-fast: false
       matrix:
         image-base:
-          - "ghcr.io/fluentdo/agent/ubi"
-          - "ghcr.io/fluentdo/agent/debian"
+          - "ghcr.io/telemetryforge/agent/ubi"
+          - "ghcr.io/telemetryforge/agent/debian"
     permissions:
       contents: read
       packages: write
@@ -174,8 +195,8 @@ jobs:
       ref: ${{ github.ref }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
-  # We want to copy the UBI image to ghcr.io/fluentdo/agent:version and
-  # the distroless image to ghcr.io/fluentdo/agent:version-slim
+  # We want to copy the UBI image to ghcr.io/telemetryforge/agent:version and
+  # the distroless image to ghcr.io/telemetryforge/agent:version-slim
   copy-common-images:
     # Only run for releases to reduce unnecessary load on the registry
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -211,8 +232,8 @@ jobs:
       fail-fast: false
       matrix:
         image-base:
-          - "ghcr.io/fluentdo/agent/ubi"
-          - "ghcr.io/fluentdo/agent/debian"
+          - "ghcr.io/telemetryforge/agent/ubi"
+          - "ghcr.io/telemetryforge/agent/debian"
 
   test-packages:
     name: Test packages
@@ -248,13 +269,18 @@ jobs:
       - build-image
       - test-containers
       # TODO: remove once failures are resolved to ensure auto-release job still goes ahead with latest commit
-      # https://github.com/FluentDo/agent/issues/73
+      # https://github.com/telemetryforge/agent/issues/73
       # - test-packages
       # Add additional jobs here as required that must complete
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@release/v1
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           # Add any jobs that can be skipped here to avoid failure of this job
           allowed-skips: build-linux,build-windows,build-macos,test-packages
@@ -281,20 +307,27 @@ jobs:
     permissions:
       packages: read
       actions: read
-      contents: write
+      contents: read
+      # We no longer need write permissions as we use a PAT due to https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+      # contents: write
       id-token: write
     env:
-      UBI_IMAGE_NAME: ghcr.io/fluentdo/agent/ubi
-      DISTROLESS_IMAGE_NAME: ghcr.io/fluentdo/agent/debian
+      UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
+      DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
       TAG: ${{ needs.build-image.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # We need full history to be able to detect branch ancestry
         with:
           fetch-depth: 0
 
       - name: Download all artefacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: output
           pattern: |
@@ -312,7 +345,7 @@ jobs:
         shell: bash
 
       - name: Authenticate with GCP
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
           service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
@@ -321,7 +354,7 @@ jobs:
         name: Get secrets from GCP Secret Manager
         # This step retrieves secrets from GCP Secret Manager and sets them as outputs
         # The secrets can then be accessed in subsequent steps using ${{ steps.get-secrets.outputs.<secret_name> }}
-        uses: "google-github-actions/get-secretmanager-secrets@v3"
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
         with:
           secrets: |-
             gpg_private_key:projects/626836145334/secrets/GPG_PRIVATE_KEY
@@ -329,7 +362,7 @@ jobs:
 
       - name: Import GPG key for signing
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v6
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         with:
           gpg_private_key: ${{ steps.get-secrets.outputs.gpg_private_key }}
           passphrase: ${{ steps.get-secrets.outputs.gpg_private_key_passphrase }}
@@ -348,13 +381,13 @@ jobs:
         shell: bash
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: anchore/sbom-action@v0
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
           artifact-name: image-ubi-sbom.spdx
@@ -362,13 +395,25 @@ jobs:
           registry-password: ${{ secrets.GITHUB_TOKEN }}
           output-file: image-ubi-sbom.spdx
 
-      - uses: anchore/sbom-action@v0
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
           artifact-name: image-debian-sbom.spdx
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
           output-file: image-debian-sbom.spdx
+
+      - name: Generate JSON schema from container
+        timeout-minutes: 1
+        # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
+        continue-on-error: true
+        run: |
+          echo "Generating JSON schema from container image"
+          docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
+          docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
+          # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
+          cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
+        shell: bash
 
       - name: Save image as tarball
         run: |
@@ -378,15 +423,15 @@ jobs:
             --remove-signatures \
             --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
             "docker://${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" \
-            "oci-archive:output/fluentdo-agent-container.tar"
+            "oci-archive:output/telemetryforge-agent-container.tar"
           skopeo copy \
             --all \
             --remove-signatures \
             --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
             "docker://${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" \
-            "oci-archive:output/fluentdo-agent-container-slim.tar"
-          tar -czvf output/fluentdo-agent-container.tar.gz output/fluentdo-agent-container.tar output/fluentdo-agent-container-slim.tar
-          rm -f output/fluentdo-agent-container.tar output/fluentdo-agent-container-slim.tar
+            "oci-archive:output/telemetryforge-agent-container-slim.tar"
+          tar -czvf output/telemetryforge-agent-container.tar.gz output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
+          rm -f output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
         shell: bash
 
       - name: Construct release info
@@ -419,14 +464,25 @@ jobs:
           fi
         shell: bash
 
+      - id: get-secrets-release
+        if: github.ref_type == 'tag'
+        name: Get secrets from GCP Secret Manager for release creation
+        # We need a custom PAT for creating a release on an older commit SHA
+        # https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+        with:
+          secrets: |-
+            github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
+
       - name: Create release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: github.ref_type == 'tag'
         # This may fail for workflow_dispatch if the release already exists
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           append_body: true
+          token: ${{ steps.get-secrets-release.outputs.github-pat }}
           body: |
-            Fluent Do Agent release for ${{ github.ref_name }} version
+            Telemetry Forge Agent release for ${{ github.ref_name }} version
 
             Version: ${{ needs.get-meta.outputs.version }}
             OSS Version: ${{ needs.get-meta.outputs.oss-version }}
@@ -443,7 +499,7 @@ jobs:
             *.spdx
             output/*.json
             deliverables.tar.gz
-            output/fluentdo-agent-container.tar.gz
+            output/telemetryforge-agent-container.tar.gz
             output/package-macos-*
             output/package-windows-*
           fail_on_unmatched_files: false
@@ -459,31 +515,23 @@ jobs:
         # Only if not a pull request
         if: ${{ github.event_name != 'pull_request' }}
         id: upload-packages
-        uses: google-github-actions/upload-cloud-storage@v3
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: output/
+          # We still use the old buckets from before our rename
           destination: fluentdo-agent-${{ needs.get-meta.outputs.build-type }}/${{ needs.get-meta.outputs.version }}/
 
   update-docs:
     needs:
       - get-meta
       - release
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
     name: Update documentation on release
-    uses: fluentdo/documentation/.github/workflows/call-add-mapping-version.yaml@main
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@694143c942c2481eb49ccbaa99f9b6c13d25d84e
     with:
       agent-version: ${{ needs.get-meta.outputs.version }}
       oss-version: ${{ needs.get-meta.outputs.oss-version }}
-
-  update-homebrew:
-    name: Update homebrew on release
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    needs:
-      - get-meta
-      - release
-      - build-macos
-    uses: fluentdo/homebrew-fluentdo-agent/.github/workflows/call-update-homebrew.yaml@main
-    with:
-      version: ${{ github.ref_name }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}

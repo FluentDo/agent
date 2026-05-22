@@ -19,7 +19,7 @@ on:
         description: The Dockerhub username to use for authenticated pulls.
         required: false
         type: string
-        default: "fluentdo"
+        default: "telemetryforge"
       amd-runner-label:
         description: The label to use for the runner.
         required: false
@@ -33,7 +33,15 @@ on:
         description: The Dockerhub token to use for authenticated pulls (not pushes).
         required: true
 env:
+  TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.version }}
+  # Support legacy version variable for backwards compatibility
   FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
 jobs:
   # This job converts the JSON build-matrix coming in to a matrix of test jobs.
   # We convert using the following rules:
@@ -46,9 +54,14 @@ jobs:
     outputs:
       linux-test-targets: ${{ steps.get_matrix.outputs.linux_test_targets }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Log in to Dockerhub
         if: ${{ !env.ACT }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ inputs.dockerhub-username }}
           password: ${{ secrets.dockerhub-token }}
@@ -111,15 +124,20 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.call-test-packages-get-meta.outputs.linux-test-targets) }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
-          repository: FluentDo/agent
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: telemetryforge/agent
           ref: ${{ inputs.ref }}
 
       - name: Log in to Dockerhub
         if: ${{ !env.ACT }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ inputs.dockerhub-username }}
           password: ${{ secrets.dockerhub-token }}
@@ -127,11 +145,11 @@ jobs:
       # Must be removed on Namespace runners
       - name: Set up QEMU
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Get package name
         uses: ./.github/actions/get-package-name
@@ -141,7 +159,7 @@ jobs:
 
       - name: Download package
         if: ${{ !env.ACT }}
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ steps.get_package_name.outputs.package-name }}
           path: downloads/
@@ -175,7 +193,7 @@ jobs:
             package-type: deb
             package: package-ubuntu-24.04
             name: ubuntu
-            binary: /opt/fluentdo-agent/bin/fluent-bit
+            binary: /opt/telemetryforge-agent/bin/fluent-bit
           # - runner: windows-latest
           #   package-type: msi
           #   package: package-windows
@@ -184,31 +202,49 @@ jobs:
     env:
       FLUENT_BIT_BINARY: ${{ matrix.binary }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
-          repository: FluentDo/agent
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: telemetryforge/agent
           ref: ${{ inputs.ref }}
+
+      - name: Override binary name for LTS branch
+        if: contains(github.ref, 'release/25.10-lts') || contains(github.base_ref, 'release/25.10-lts') || contains(github.ref, 'release/26.4-lts') || contains(github.base_ref, 'release/26.4-lts')
+        run: |
+          FLUENT_BIT_BINARY="/opt/fluentdo-agent/bin/fluent-bit"
+          echo "FLUENT_BIT_BINARY=$FLUENT_BIT_BINARY"
+          echo "FLUENT_BIT_BINARY=$FLUENT_BIT_BINARY" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Debug environment
+        run: env
+        shell: bash
 
       # Must be removed on Namespace runners
       - name: Set up QEMU
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
         if: ${{ !contains( runner.name, 'nsc-' ) }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Install BATS
-        uses: bats-core/bats-action@3.0.1
+        uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # 4.0.0
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           assert-install: false
           detik-install: false
           file-install: false
           support-install: false
 
       - name: Download package
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ matrix.package }}
           path: downloads/
@@ -222,7 +258,6 @@ jobs:
         run: |
           sudo apt-get update
           find "$PWD/downloads/" -name '*.deb' -exec sh -c 'i="$1";echo "$i";sudo apt-get install -y "$i"' shell {} \;
-          ls -lRh /opt/fluent*
         shell: bash
 
       - name: Install package
@@ -235,3 +270,21 @@ jobs:
       - name: Run integration tests
         run: ./testing/bats/run-package-integration-tests.sh
         shell: bash
+
+      - name: Debug linux binary
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          ls -lRh /opt
+          ls -lRh "${{ matrix.binary }}" || true
+          "${{ matrix.binary }}" --version || true
+        shell: bash
+
+      - name: Debug windows binary
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          $binaryPath = "${{ matrix.binary }}"
+          Get-Item -Path $binaryPath | Format-List -Property *
+          & $binaryPath --version
+        shell: pwsh

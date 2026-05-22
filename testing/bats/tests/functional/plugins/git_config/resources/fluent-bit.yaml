@@ -1,0 +1,20 @@
+service:
+  flush: 1
+  grace: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      dummy: '{"message": "Switched to updated configuration", "sha": "${GIT_SHA}"}'
+      alias: input_dummy
+
+  outputs:
+    - name: stdout
+      match: '*'
+      alias: output_stdout
+    - name: exit
+      match: '*'
+      # Exit after processing 2 records to ensure the test completes in a reasonable time frame
+      record_count: 2
+      alias: output_exit

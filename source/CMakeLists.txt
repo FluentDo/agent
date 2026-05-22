@@ -6,8 +6,8 @@ cmake_policy(SET CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
 # Fluent Bit Version
-set(FLB_VERSION_MAJOR 25)
-set(FLB_VERSION_MINOR 12)
+set(FLB_VERSION_MAJOR 26)
+set(FLB_VERSION_MINOR 5)
 set(FLB_VERSION_PATCH 3)
 set(FLB_VERSION_STR "${FLB_VERSION_MAJOR}.${FLB_VERSION_MINOR}.${FLB_VERSION_PATCH}")
 
@@ -83,6 +83,14 @@ if (MSVC)
   add_compile_options(/MT)
 else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Prevent the toolchain from emitting an executable stack on Linux targets,
+    # which triggers kernel warnings (e.g. "started with executable stack") and
+    # weakens security hardening. The linker flag is not supported on macOS.
+    add_compile_options(-Wa,--noexecstack)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,noexecstack")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,noexecstack")
+  endif()
   # The following flags are to enhance security, but it may impact performance,
   # we disable them by default.
 endif()
@@ -134,12 +142,13 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/library")
 option(FLB_ALL                 "Enable all features"                         No)
 option(FLB_DEBUG               "Build with debug mode (-g)"                  No)
 option(FLB_RELEASE             "Build with release mode (-O2 -g -DNDEBUG)"   Yes)
-set(FLB_IPO "ReleaseOnly" CACHE STRING "Build with interprocedular optimization")
+set(FLB_IPO "ReleaseOnly" CACHE STRING "Build with interprocedural optimization")
 set_property(CACHE FLB_IPO PROPERTY STRINGS "On;Off;ReleaseOnly")
 option(FLB_SMALL               "Optimise for small size"       No)
 set(FLB_SECURITY "ReleaseOnly" CACHE STRING "Build with security optimizations")
 set_property(CACHE FLB_SECURITY PROPERTY STRINGS "On;Off;ReleaseOnly")
 option(FLB_COVERAGE            "Build with code-coverage"      No)
+option(FLB_COMPILER_STRICT_POINTER_TYPES "Build with -Werror=incompatible-pointer-types" No)
 option(FLB_JEMALLOC            "Build with Jemalloc support"   No)
 option(FLB_REGEX               "Build with Regex support"     Yes)
 option(FLB_UTF8_ENCODER        "Build with UTF8 encoding support" Yes)
@@ -220,14 +229,14 @@ if(DEFINED FLB_NIGHTLY_BUILD AND NOT "${FLB_NIGHTLY_BUILD}" STREQUAL "")
 endif()
 
 # Build metadata: distribution and package type
-if(DEFINED FLUENTDO_AGENT_DISTRO AND NOT "${FLUENTDO_AGENT_DISTRO}" STREQUAL "")
-  FLB_DEFINITION_VAL(FLUENTDO_AGENT_DISTRO ${FLUENTDO_AGENT_DISTRO})
-  message(STATUS "Build distro: ${FLUENTDO_AGENT_DISTRO}")
+if(DEFINED TELEMETRY_FORGE_AGENT_DISTRO AND NOT "${TELEMETRY_FORGE_AGENT_DISTRO}" STREQUAL "")
+  FLB_DEFINITION_VAL(TELEMETRY_FORGE_AGENT_DISTRO ${TELEMETRY_FORGE_AGENT_DISTRO})
+  message(STATUS "Build distro: ${TELEMETRY_FORGE_AGENT_DISTRO}")
 endif()
 
-if(DEFINED FLUENTDO_AGENT_PACKAGE_TYPE AND NOT "${FLUENTDO_AGENT_PACKAGE_TYPE}" STREQUAL "")
-  FLB_DEFINITION_VAL(FLUENTDO_AGENT_PACKAGE_TYPE ${FLUENTDO_AGENT_PACKAGE_TYPE})
-  message(STATUS "Build package type: ${FLUENTDO_AGENT_PACKAGE_TYPE}")
+if(DEFINED TELEMETRY_FORGE_AGENT_PACKAGE_TYPE AND NOT "${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}" STREQUAL "")
+  FLB_DEFINITION_VAL(TELEMETRY_FORGE_AGENT_PACKAGE_TYPE ${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE})
+  message(STATUS "Build package type: ${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}")
 endif()
 
 if(FLB_IN_STORAGE_BACKLOG)
@@ -429,20 +438,23 @@ if(FLB_UNICODE_ENCODER)
   endif()
 endif()
 
-# simdutf
-if(FLB_UNICODE_ENCODER)
-  if (NOT FLB_USE_SIMDUTF)
-    message(STATUS "FLB_USE_SIMDUTF is disabled. Disabling FLB_UNICODE_ENCODER support.")
-    set(FLB_UNICODE_ENCODER OFF)
-  endif()
-endif()
-
 if(FLB_COVERAGE)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 --coverage -fprofile-arcs -ftest-coverage")
   if (FLB_UNICODE_ENCODER)
     set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -g -O0 --coverage -fprofile-arcs -ftest-coverage")
   endif()
   set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
+if(FLB_COMPILER_STRICT_POINTER_TYPES)
+  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    add_compile_options(-Werror=incompatible-pointer-types)
+  endif()
+  # Currently, AppleClang has more struct rules when using -Werror=incompatible-pointer-types.
+  # We still permit to discarding const qualifiers warnings.
+  if(CMAKE_C_COMPILER_ID MATCHES "AppleClang")
+    add_compile_options(-Wno-incompatible-pointer-types-discards-qualifiers)
+  endif()
 endif()
 
 # Enable Debug symbols if specified
@@ -576,14 +588,52 @@ add_subdirectory(${FLB_PATH_LIB_MINIZ} EXCLUDE_FROM_ALL)
 
 # Zstd (zstd)
 if(FLB_PREFER_SYSTEM_LIB_ZSTD)
-  find_package(PkgConfig)
-  pkg_check_modules(LIBZSTD libzstd>=1.4.8)
+  find_package(ZSTD 1.4.8 QUIET)
+  if(ZSTD_FOUND)
+    set(LIBZSTD_FOUND TRUE)
+    # Use the target provided by find_package(ZSTD)
+    # Modern FindZSTD provides ZSTD::libzstd_static or ZSTD::libzstd_shared
+    if(TARGET ZSTD::libzstd_static)
+      set(LIBZSTD_LIBRARIES ZSTD::libzstd_static)
+    elseif(TARGET ZSTD::libzstd_shared)
+      set(LIBZSTD_LIBRARIES ZSTD::libzstd_shared)
+    elseif(TARGET ZSTD::ZSTD)
+      set(LIBZSTD_LIBRARIES ZSTD::ZSTD)
+    else()
+      # Fallback: create a wrapper if no target is provided
+      add_library(BUNDLED::ZSTD INTERFACE IMPORTED)
+      if(ZSTD_LIBRARIES)
+        set_property(TARGET BUNDLED::ZSTD PROPERTY
+          INTERFACE_LINK_LIBRARIES "${ZSTD_LIBRARIES}")
+      endif()
+      if(ZSTD_INCLUDE_DIRS)
+        set_property(TARGET BUNDLED::ZSTD PROPERTY
+          INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_INCLUDE_DIRS}")
+      endif()
+      set(LIBZSTD_LIBRARIES BUNDLED::ZSTD)
+    endif()
+   else()
+   find_package(PkgConfig)
+   pkg_check_modules(LIBZSTD libzstd>=1.4.8)
+   if(LIBZSTD_FOUND)
+      include_directories(${LIBZSTD_INCLUDE_DIRS})
+      link_directories(${LIBZSTD_LIBRARY_DIRS})
+      add_library(BUNDLED::ZSTD INTERFACE IMPORTED)
+      set_property(TARGET BUNDLED::ZSTD PROPERTY
+        INTERFACE_LINK_LIBRARIES "${LIBZSTD_LIBRARIES}")
+      set(LIBZSTD_LIBRARIES BUNDLED::ZSTD)
+    endif()
+  endif()
 endif()
-if(LIBZSTD_FOUND)
-  include_directories(${LIBZSTD_INCLUDE_DIRS})
-  link_directories(${LIBZSTD_LIBRARY_DIRS})
-else()
+
+if(NOT LIBZSTD_FOUND)
   include(cmake/zstd.cmake)
+
+  if(NOT MSVC)
+    target_compile_options(libzstd_static PRIVATE -fvisibility=hidden)
+  endif()
+
+  set(LIBZSTD_LIBRARIES libzstd_static)
 endif()
 
 # ring buffer library
@@ -597,8 +647,8 @@ if(FLB_AVRO_ENCODER)
   # jansson
   option(JANSSON_BUILD_DOCS         OFF)
   option(JANSSON_EXAMPLES           OFF)
-  option(JANSSON_WITHOUT_TESTS       ON)
   option(JANSSON_BUILD_SHARED_LIBS  OFF)
+  set(JANSSON_WITHOUT_TESTS ON CACHE BOOL "" FORCE)
   add_subdirectory(${FLB_PATH_LIB_JANSSON})
 
   #avro
@@ -770,6 +820,8 @@ endif()
 # AWS MSK IAM detection (must come after Kafka section)
 if(FLB_AWS AND FLB_KAFKA)
   # Check if Kafka SASL support was detected
+  # On Windows: uses SSPI (no Cyrus SASL needed, just SSL)
+  # On Linux/macOS: uses Cyrus SASL (libsasl2)
   if(DEFINED FLB_SASL_ENABLED AND FLB_SASL_ENABLED)
     set(FLB_HAVE_AWS_MSK_IAM ON)  # Set CMake variable
     FLB_DEFINITION(FLB_HAVE_AWS_MSK_IAM)  # Set preprocessor definition
@@ -1417,11 +1469,11 @@ endif()
 # ============================
 
 set(CPACK_PACKAGE_VERSION ${FLB_VERSION_STR})
-set(CPACK_PACKAGE_NAME "fluentdo-agent")
+set(CPACK_PACKAGE_NAME "telemetryforge-agent")
 
 set(CPACK_PACKAGE_RELEASE 1)
-set(CPACK_PACKAGE_CONTACT "Fluent Do <info@fluent.do>")
-set(CPACK_PACKAGE_VENDOR "Fluent Do <https://fluent.do>")
+set(CPACK_PACKAGE_CONTACT "Telemetry Forge <info@telemetryforge.io>")
+set(CPACK_PACKAGE_VENDOR "Telemetry Forge <https://telemetryforge.io>")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/")
 
@@ -1515,7 +1567,7 @@ set(CPACK_RPM_RUNTIME_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-
 # CPack: Windows System
 if(CPACK_GENERATOR MATCHES "NSIS")
   set(CPACK_MONOLITHIC_INSTALL 1)
-  set(CPACK_PACKAGE_INSTALL_DIRECTORY "fluentdo-agent")
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "telemetryforge-agent")
 endif()
 
 # CPack: Windows System w/ WiX
@@ -1539,11 +1591,11 @@ if(FLB_SYSTEM_MACOS)
     OUTPUT_STRIP_TRAILING_WHITESPACE
     )
   if (UNAME_M_RESULT EQUAL 0 AND UNAME_ARCH STREQUAL "arm64")
-    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/fluentdo-agent-${FLB_VERSION_STR}-apple)
+    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/telemetryforge-agent-${FLB_VERSION_STR}-apple)
   elseif(UNAME_M_RESULT EQUAL 0 AND UNAME_ARCH STREQUAL "x86_64")
-    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/fluentdo-agent-${FLB_VERSION_STR}-intel)
+    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/telemetryforge-agent-${FLB_VERSION_STR}-intel)
   else()
-    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/fluentdo-agent-${FLB_VERSION_STR}-${UNAME_ARCH})
+    set(FLUENT_BIT_PKG ${CMAKE_CURRENT_BINARY_DIR}/telemetryforge-agent-${FLB_VERSION_STR}-${UNAME_ARCH})
   endif()
 
   if (CPACK_GENERATOR MATCHES "productbuild")

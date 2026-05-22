@@ -5,7 +5,7 @@ on:
       image:
         description: The full image name to test.
         required: false
-        default: "ghcr.io/fluentdo/agent"
+        default: "ghcr.io/telemetryforge/agent"
         type: string
       image-tag:
         description: The image tag to test.
@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: main
+
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
 jobs:
   get-meta:
     name: Get meta information required
@@ -25,10 +30,14 @@ jobs:
     outputs:
       kind-versions: ${{ steps.set-meta.outputs.kind-versions }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
-          repository: FluentDo/agent
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: telemetryforge/agent
           ref: ${{ github.event.inputs.ref || github.ref }}
       - name: Extract the configuration from the JSON file
         id: set-meta

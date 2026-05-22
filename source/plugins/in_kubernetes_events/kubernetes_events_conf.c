@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -125,6 +125,13 @@ static int network_init(struct k8s_events *ctx, struct flb_config *config)
                                         ctx->tls);
     if (!ctx->upstream) {
         flb_plg_error(ctx->ins, "network initialization failed");
+        return -1;
+    }
+
+    if (flb_input_upstream_set(ctx->upstream, ctx->ins) != 0) {
+        flb_plg_error(ctx->ins, "network upstream setup failed");
+        flb_upstream_destroy(ctx->upstream);
+        ctx->upstream = NULL;
         return -1;
     }
 

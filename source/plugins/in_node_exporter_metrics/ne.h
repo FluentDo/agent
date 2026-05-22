@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@
 /* Default enabled metrics */
 
 #ifdef __linux__
-#define NE_DEFAULT_ENABLED_METRICS "cpu,cpufreq,meminfo,diskstats,filesystem,uname,stat,time,loadavg,vmstat,netdev,sockstat,filefd,systemd,nvme,thermal_zone,hwmon"
+#define NE_DEFAULT_ENABLED_METRICS "cpu,cpufreq,meminfo,diskstats,filesystem,uname,stat,time,loadavg,vmstat,netdev,netstat,sockstat,filefd,systemd,nvme,thermal_zone,hwmon"
 #elif __APPLE__
 #define NE_DEFAULT_ENABLED_METRICS "cpu,loadavg,meminfo,diskstats,uname,netdev"
 #endif
@@ -162,6 +162,16 @@ struct flb_ne {
     struct cmt_gauge *sockstat_RAW6_inuse;
     struct cmt_gauge *sockstat_FRAG6_inuse;
     struct cmt_gauge *sockstat_FRAG6_memory;
+
+    /* netstat_linux */
+    struct cmt_gauge   *netstat_Tcp_CurrEstab;
+    struct cmt_counter *netstat_Tcp_ActiveOpens;
+    struct cmt_counter *netstat_Tcp_PassiveOpens;
+    struct cmt_counter *netstat_Tcp_RetransSegs;
+    struct cmt_counter *netstat_Udp_InDatagrams;
+    struct cmt_counter *netstat_Udp_InErrors;
+    struct cmt_counter *netstat_Udp_OutDatagrams;
+    struct cmt_counter *netstat_Udp_NoPorts;
 
     /* time */
     struct cmt_gauge *time;

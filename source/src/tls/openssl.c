@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -40,6 +40,11 @@
 #ifdef FLB_SYSTEM_WINDOWS
     #define strtok_r(str, delimiter, context) \
             strtok_s(str, delimiter, context)
+    #include <wincrypt.h>
+    #ifndef CERT_FIND_SHA256_HASH
+        /* Older SDKs may not define this */
+        #define CERT_FIND_SHA256_HASH  0x0001000d
+    #endif
 #endif
 
 /*
@@ -59,6 +64,8 @@ struct tls_context {
 #if defined(FLB_SYSTEM_WINDOWS)
     char *certstore_name;
     int use_enterprise_store;
+    CRYPT_HASH_BLOB *allowed_thumbprints;
+    size_t allowed_thumbprints_count;
 #endif
     pthread_mutex_t mutex;
 };
@@ -157,6 +164,17 @@ static void tls_context_destroy(void *ctx_backend)
         flb_free(ctx->certstore_name);
 
         ctx->certstore_name = NULL;
+    }
+    if (ctx->allowed_thumbprints) {
+        /* We allocated each blob->pbData; free them too */
+        for (size_t i = 0; i < ctx->allowed_thumbprints_count; i++) {
+            if (ctx->allowed_thumbprints[i].pbData) {
+                flb_free(ctx->allowed_thumbprints[i].pbData);
+            }
+        }
+        flb_free(ctx->allowed_thumbprints);
+        ctx->allowed_thumbprints = NULL;
+        ctx->allowed_thumbprints_count = 0;
     }
 #endif
 
@@ -284,6 +302,104 @@ int tls_context_alpn_set(void *ctx_backend, const char *alpn)
 }
 
 #ifdef _MSC_VER
+/* Parse certstore_name prefix like
+ *
+ *   "My"                        -> no prefix, leave location untouched
+ *   "CurrentUser\\My"           -> CERT_SYSTEM_STORE_CURRENT_USER, "My"
+ *   "HKCU\\My"                  -> CERT_SYSTEM_STORE_CURRENT_USER, "My"
+ *   "LocalMachine\\My"          -> CERT_SYSTEM_STORE_LOCAL_MACHINE, "My"
+ *   "HKLM\\My"                  -> CERT_SYSTEM_STORE_LOCAL_MACHINE, "My"
+ *   "LocalMachineEnterprise\\My"-> CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE, "My"
+ *   "HKLME\\My"                 -> CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE, "My"
+ *
+ * Also accepts '/' as separator.
+ *
+ * If no known prefix is found, *store_name_out is left as-is and *location_flags
+ * is not modified (so legacy behavior is preserved).
+ */
+static int windows_resolve_certstore_location(const char *configured_name,
+                                              DWORD *location_flags,
+                                              const char **store_name_out)
+{
+    const char *name;
+    const char *sep;
+    size_t prefix_len;
+    char prefix_buf[32];
+    size_t i;
+    size_t len = 0;
+    char c;
+
+    if (!configured_name || !*configured_name) {
+        return FLB_FALSE;
+    }
+
+    name = configured_name;
+    len = strlen(name);
+
+    /* Optional "Cert:\" prefix (PowerShell style) */
+    if (len >= 6 &&
+        strncasecmp(name, "cert:", 5) == 0 &&
+        (name[5] == '\\' || name[5] == '/')) {
+        name += 6;
+    }
+
+    /* Find first '\' or '/' separator */
+    sep = name;
+    while (*sep != '\0' && *sep != '\\' && *sep != '/') {
+        sep++;
+    }
+
+    if (*sep == '\0') {
+        /* No prefix, only store name (e.g. "My" or "Root")
+         * -> keep legacy behavior (location_flags unchanged).
+         */
+        *store_name_out = name;
+
+        return FLB_FALSE;
+    }
+
+    /* Copy and lowercase prefix into buffer */
+    prefix_len = (size_t)(sep - name);
+    if (prefix_len >= sizeof(prefix_buf)) {
+        prefix_len = sizeof(prefix_buf) - 1;
+    }
+
+    for (i = 0; i < prefix_len; i++) {
+        c = (char) name[i];
+
+        if (c >= 'A' && c <= 'Z') {
+            c = (char) (c - 'A' + 'a');
+        }
+        prefix_buf[i] = c;
+    }
+    prefix_buf[prefix_len] = '\0';
+
+    /* Default: keep *location_flags as-is */
+    if (strcmp(prefix_buf, "currentuser") == 0 ||
+        strcmp(prefix_buf, "hkcu") == 0) {
+        *location_flags = CERT_SYSTEM_STORE_CURRENT_USER;
+    }
+    else if (strcmp(prefix_buf, "localmachine") == 0 ||
+             strcmp(prefix_buf, "hklm") == 0) {
+        *location_flags = CERT_SYSTEM_STORE_LOCAL_MACHINE;
+    }
+    else if (strcmp(prefix_buf, "localmachineenterprise") == 0 ||
+             strcmp(prefix_buf, "hklme") == 0) {
+        *location_flags = CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE;
+    }
+    else {
+        /* Unknown prefix -> treat entire string as store name */
+        *store_name_out = configured_name;
+
+        return FLB_FALSE;
+    }
+
+    /* Store name part after the separator "\" or "/" */
+    *store_name_out = sep + 1;
+
+    return FLB_TRUE;
+}
+
 static int windows_load_system_certificates(struct tls_context *ctx)
 {
     int ret;
@@ -293,7 +409,10 @@ static int windows_load_system_certificates(struct tls_context *ctx)
     const unsigned char *win_cert_data;
     X509_STORE *ossl_store = SSL_CTX_get_cert_store(ctx->ctx);
     X509 *ossl_cert;
-    char *certstore_name = "Root";
+    char *configured_name = "Root";
+    const char *store_name = "Root";
+    DWORD store_location = CERT_SYSTEM_STORE_CURRENT_USER;
+    int has_location_prefix = FLB_FALSE;
 
     /* Check if OpenSSL certificate store is available */
     if (!ossl_store) {
@@ -302,25 +421,97 @@ static int windows_load_system_certificates(struct tls_context *ctx)
     }
 
     if (ctx->certstore_name) {
-        certstore_name = ctx->certstore_name;
+        configured_name = ctx->certstore_name;
+        store_name = ctx->certstore_name;
     }
 
-    if (ctx->use_enterprise_store) {
-        /* Open the Windows system enterprise certificate store */
+    /* First, resolve explicit prefix if present */
+    has_location_prefix = windows_resolve_certstore_location(configured_name,
+                                                             &store_location,
+                                                             &store_name);
+
+    /* Backward compatibility:
+     * If no prefix was given (store_name == configured_name) and
+     * use_enterprise_store is set, override location accordingly.
+     */
+    if (has_location_prefix == FLB_FALSE && ctx->use_enterprise_store) {
+        store_location = CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE;
+    }
+
+    /* Open the Windows certificate store for the resolved location */
+    if (store_location == CERT_SYSTEM_STORE_CURRENT_USER) {
+        /* Keep using CertOpenSystemStoreA for current user to avoid
+         * changing existing behavior.
+         */
+        win_store = CertOpenSystemStoreA(0, store_name);
+    }
+    else {
         win_store = CertOpenStore(CERT_STORE_PROV_SYSTEM,
                                   0,
                                   0,
-                                  CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE,
-                                  certstore_name);
-    }
-    else {
-        /* Open the Windows system certificate store */
-        win_store = CertOpenSystemStoreA(0, certstore_name);
+                                  store_location,
+                                  store_name);
     }
 
     if (win_store == NULL) {
         flb_error("[tls] cannot open windows certificate store: %lu", GetLastError());
         return -1;
+    }
+
+    if (ctx->allowed_thumbprints_count > 0) {
+        size_t loaded = 0;
+        DWORD find_type = 0;
+        size_t i;
+
+        for (i = 0; i < ctx->allowed_thumbprints_count; i++) {
+            find_type = (ctx->allowed_thumbprints[i].cbData == 20)
+                         ? CERT_FIND_SHA1_HASH
+                         : CERT_FIND_SHA256_HASH;
+
+            win_cert = NULL;
+            while ((win_cert = CertFindCertificateInStore(win_store,
+                                                          X509_ASN_ENCODING,
+                                                          0,
+                                                          find_type,
+                                                          &ctx->allowed_thumbprints[i],
+                                                          win_cert)) != NULL) {
+
+                win_cert_data = win_cert->pbCertEncoded;
+                ossl_cert = d2i_X509(NULL, &win_cert_data, win_cert->cbCertEncoded);
+                if (!ossl_cert) {
+                    flb_debug("[tls] parse failed for matched certificate (thumbprint idx %zu)", i);
+                    continue;
+                }
+
+                ret = X509_STORE_add_cert(ossl_store, ossl_cert);
+                if (ret != 1) {
+                    unsigned long err = ERR_get_error();
+                    if (ERR_GET_REASON(err) == X509_R_CERT_ALREADY_IN_HASH_TABLE) {
+                        flb_debug("[tls] certificate already present (thumbprint idx %zu).", i);
+                    }
+                    else {
+                        flb_warn("[tls] add_cert failed: %s", ERR_error_string(err, NULL));
+                    }
+                }
+                else {
+                    loaded++;
+                }
+                X509_free(ossl_cert);
+            }
+        }
+
+        if (!CertCloseStore(win_store, 0)) {
+            flb_error("[tls] cannot close windows certificate store: %lu", GetLastError());
+            return -1;
+        }
+
+        if (loaded == 0) {
+            flb_warn("[tls] no certificates loaded by thumbprint from '%s'.", configured_name);
+        }
+        else {
+            flb_debug("[tls] loaded %zu certificate(s) by thumbprint from '%s'.", loaded, configured_name);
+        }
+        return 0;
     }
 
     /* Iterate over certificates in the store */
@@ -371,7 +562,7 @@ static int windows_load_system_certificates(struct tls_context *ctx)
     }
 
     flb_debug("[tls] successfully loaded certificates from windows system %s store.", 
-              certstore_name);
+              configured_name);
     return 0;
 }
 #endif
@@ -597,6 +788,12 @@ static void *tls_context_create(int verify,
     ctx->mode = mode;
     ctx->alpn = NULL;
     ctx->debug_level = debug;
+#if defined(FLB_SYSTEM_WINDOWS)
+    ctx->certstore_name = NULL;
+    ctx->use_enterprise_store = 0;
+    ctx->allowed_thumbprints = NULL;
+    ctx->allowed_thumbprints_count = 0;
+#endif
     pthread_mutex_init(&ctx->mutex, NULL);
 
     /* Verify peer: by default OpenSSL always verify peer */
@@ -812,6 +1009,152 @@ static int tls_set_use_enterprise_store(struct flb_tls *tls, int use_enterprise)
 
     return 0;
 }
+
+static int hex_nibble(int c) {
+    if      (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    else if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    else if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+static char *compact_hex(const char *s) {
+    size_t n = 0;
+    size_t i;
+    char *out = flb_calloc(1, strlen(s) + 1);
+
+    if (!out) {
+        return NULL;
+    }
+
+    for (i = 0; s[i]; i++) {
+        int c = s[i];
+        if ((c >= '0' && c <= '9') ||
+            (c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F')) {
+            out[n++] = (char)c;
+        }
+    }
+    out[n] = '\0';
+    return out;
+}
+
+static unsigned char *hex_to_bytes(const char *hex, size_t *out_len) {
+    unsigned char *buf = NULL;
+    size_t i;
+    size_t len = strlen(hex);
+    if (len % 2 != 0) {
+        return NULL;
+    }
+
+    buf = flb_calloc(1, len / 2);
+    if (!buf) {
+        return NULL;
+    }
+
+    for (i = 0; i < len; i += 2) {
+        int hi = hex_nibble(hex[i]);
+        int lo = hex_nibble(hex[i+1]);
+        if (hi < 0 || lo < 0) {
+            flb_free(buf);
+            return NULL;
+        }
+        buf[i/2] = (unsigned char)((hi << 4) | lo);
+    }
+    *out_len = len / 2;
+    return buf;
+}
+
+static int windows_set_allowed_thumbprints(struct tls_context *ctx, const char *thumbprints) 
+{
+    char *token_ctx = NULL, *tok = NULL;
+    size_t cap = 4, count = 0;
+    char *hex = NULL;
+    struct cfl_list *kvs;
+    struct cfl_list *head;
+    struct cfl_split_entry *cur;
+    CRYPT_HASH_BLOB *arr;
+    size_t bytes_len = 0;
+    unsigned char *bytes = NULL;
+
+    if (!thumbprints || !*thumbprints) {
+        return 0;
+    }
+
+    arr = flb_calloc(cap, sizeof(*arr));
+    if (!arr) {
+        return -1;
+    }
+
+    kvs = cfl_utils_split(thumbprints, ',', -1);
+    cfl_list_foreach(head, kvs) {
+        cur = cfl_list_entry(head, struct cfl_split_entry, _head);
+        tok = cur->value;
+        hex = compact_hex(tok);
+        if (hex && *hex) {
+            bytes = hex_to_bytes(hex, &bytes_len);
+            if (bytes && (bytes_len == 20 || bytes_len == 32)) {
+                if (count == cap) {
+                    cap *= 2;
+                    CRYPT_HASH_BLOB *tmp = flb_realloc(arr, cap * sizeof(*arr));
+                    if (!tmp) {
+                        flb_free(bytes);
+                        break;
+                    }
+                    arr = tmp;
+                }
+                arr[count].cbData = (DWORD)bytes_len;
+                arr[count].pbData = bytes;
+                count++;
+            }
+            else {
+                flb_warn("[tls] ignoring thumbprint '%s' (length must be 40 or 64 hex chars after stripping).", tok);
+                if (bytes) {
+                    flb_free(bytes);
+                }
+            }
+        }
+        if (hex) {
+            flb_free(hex);
+        }
+    }
+    cfl_utils_split_free(kvs);
+
+    if (count == 0) {
+        if (arr) {
+            flb_free(arr);
+        }
+        flb_warn("[tls] no valid thumbprints parsed.");
+        return -1;
+    }
+
+    ctx->allowed_thumbprints = arr;
+    ctx->allowed_thumbprints_count = count;
+    flb_debug("[tls] parsed %zu allowed thumbprint(s).", count);
+
+    return 0;
+}
+
+static int tls_set_client_thumbprints(struct flb_tls *tls, const char *thumbprints) {
+    struct tls_context *ctx = tls->ctx;
+    int rc = 0;
+
+    pthread_mutex_lock(&ctx->mutex);
+
+    if (ctx->allowed_thumbprints || ctx->allowed_thumbprints_count) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return -1;
+    }
+    rc = windows_set_allowed_thumbprints(ctx, thumbprints);
+    pthread_mutex_unlock(&ctx->mutex);
+    return rc;
+}
+
 #endif
 
 static void *tls_session_create(struct flb_tls *tls,
@@ -1243,5 +1586,6 @@ static struct flb_tls_backend tls_openssl = {
 #if defined(FLB_SYSTEM_WINDOWS)
     .set_certstore_name   = tls_set_certstore_name,
     .set_use_enterprise_store = tls_set_use_enterprise_store,
+    .set_client_thumbprints   = tls_set_client_thumbprints,
 #endif
 };

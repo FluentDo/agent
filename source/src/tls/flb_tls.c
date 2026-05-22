@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2019-2020 The Fluent Bit Authors
+ *  Copyright (C) 2019-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -313,6 +313,13 @@ int flb_tls_set_use_enterprise_store(struct flb_tls *tls, int use_enterprise)
     }
 
     return 0;
+}
+
+int flb_tls_set_client_thumbprints(struct flb_tls *tls, const char *thumbprints) {
+    if (tls && tls->api->set_client_thumbprints) {
+        return tls->api->set_client_thumbprints(tls, thumbprints);
+    }
+    return -1;
 }
 #endif
 

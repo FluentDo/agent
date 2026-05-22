@@ -16,6 +16,14 @@ on:
         required: false
         type: string
         default: ""
+
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
 jobs:
   call-build-windows-package:
     runs-on: windows-2025
@@ -38,16 +46,23 @@ jobs:
       VCPKG_BUILD_TYPE: release
       VCPKG_LIBRARY_LINKAGE: static
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
       - name: Checkout ${{ inputs.ref }} code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.ref }}
-          repository: FluentDo/agent
+          repository: telemetryforge/agent
 
       - name: Ensure we apply specific version from tag
         run: ./scripts/setup-code.sh
         shell: bash
         env:
+          TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.version }}
+          # Support legacy version variable for backwards compatibility
           FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
 
       - name: Deltas
@@ -69,12 +84,12 @@ jobs:
       - name: Set up with Developer Command Prompt for Microsoft Visual C++
         # Note this messes with VCPKG_ROOT incorrectly hence the use of explicit pathing to vcpkg later
         # https://github.com/actions/runner-images/issues/9269#issuecomment-1921607066
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: ${{ matrix.config.arch }}
 
       - name: Get gzip command and nsis w/ chocolatey
-        uses: crazy-max/ghaction-chocolatey@v3
+        uses: crazy-max/ghaction-chocolatey@dff3862348493b11fba2fbc49147b6d2dfe09b66 # v4.0.0
         with:
           args: install gzip nsis -y
 
@@ -91,7 +106,7 @@ jobs:
 
       - name: Restore cached packages of vcpkg
         id: cache-vcpkg-sources
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             C:\vcpkg\installed
@@ -100,17 +115,24 @@ jobs:
             ${{ runner.os }}-${{ matrix.config.arch }}-vcpkg-installed-
           enableCrossOsArchive: false
 
-      - name: Build openssl with vcpkg
+      - name: Install openssl with vcpkg
         run: |
           C:\vcpkg\vcpkg install --recurse openssl --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
-      - name: Build libyaml with vcpkg
+      - name: Install libyaml with vcpkg
         run: |
           C:\vcpkg\vcpkg install --recurse libyaml --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
-      - name: Build libgit2 with vcpkg
+      - name: Install zlib with vcpkg
+        run: |
+          C:\vcpkg\vcpkg install --recurse zlib --triplet ${{ matrix.config.vcpkg_triplet }}
+        shell: cmd
+
+      - name: Install libgit2 with vcpkg
+        # Note that this has a dependency on zlib we need to satisfy, ideally from our vendored version
+        # but that is not possible in this case without building from source.
         run: |
           C:\vcpkg\vcpkg install --recurse libgit2 --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
@@ -128,22 +150,26 @@ jobs:
 
       - name: Save packages of vcpkg
         id: save-vcpkg-sources
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             C:\vcpkg\installed
           key: ${{ steps.cache-vcpkg-sources.outputs.cache-primary-key }}
           enableCrossOsArchive: false
 
-      - name: Build hardened Fluent Bit packages
+      - name: Configure build
         run: |
           cmake -G "NMake Makefiles" `
             -DCMAKE_VERBOSE_MAKEFILE=On `
+            -DCMAKE_TOOLCHAIN_FILE='C:\vcpkg\scripts\buildsystems\vcpkg.cmake' `
+            -DVCPKG_TARGET_TRIPLET='${{ matrix.config.vcpkg_triplet }}' `
             -DOPENSSL_ROOT_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
             ${{ matrix.config.cmake_additional_opt }} `
             -DFLB_LIBYAML_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
             -DLIBGIT2_INCLUDE_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}\include' `
             -DLIBGIT2_LIBRARY='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}\lib\git2.lib' `
+            -DTELEMETRY_FORGE_AGENT_DISTRO=${{ matrix.config.distro }} `
+            -DTELEMETRY_FORGE_AGENT_PACKAGE_TYPE=PACKAGE `
             -DFLUENTDO_AGENT_DISTRO=${{ matrix.config.distro }} `
             -DFLUENTDO_AGENT_PACKAGE_TYPE=PACKAGE `
             -DFLB_IN_CALYPTIA_FLEET=Off `
@@ -176,16 +202,32 @@ jobs:
             -DFLB_TRACE=Off `
             -DFLB_CHUNK_TRACE=Off `
             ../
+        working-directory: source/build
+
+      - name: Build hardened Fluent Bit packages
+        run: |
           cmake --build .
           cpack
         working-directory: source/build
 
+      - name: Debug build output
+        if: always()
+        continue-on-error: true
+        # Find all files in the build output directory and print them to the logs for debugging purposes
+        run: |
+          Get-ChildItem -Path source/build/**/*.log -Recurse | ForEach-Object {
+            Write-Host "Contents of $($_.FullName):"
+            Get-Content $_.FullName
+            Write-Host "End of $($_.FullName)"
+          }
+        shell: pwsh
+
       - name: Upload build packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: package-windows-${{ matrix.config.arch }}
           path: |
-            source/build/fluentdo-agent-*.exe
-            source/build/fluentdo-agent-*.msi
-            source/build/fluentdo-agent-*.zip
+            source/build/*-agent-*.exe
+            source/build/*-agent-*.msi
+            source/build/*-agent-*.zip
           if-no-files-found: error

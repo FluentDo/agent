@@ -2,7 +2,7 @@
 
 /*  Fluent Bit
  *  ==========
- *  Copyright (C) 2015-2024 The Fluent Bit Authors
+ *  Copyright (C) 2015-2026 The Fluent Bit Authors
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -313,6 +313,12 @@ int cm_logs_process(struct flb_processor_instance *ins,
         ret = flb_log_event_decoder_get_record_type(&record->event, &record_type);
         if (ret != 0) {
             flb_plg_error(ctx->ins, "record has invalid event type");
+            continue;
+        }
+
+        if (record_type == FLB_LOG_EVENT_GROUP_START &&
+            (ctx->context_type == CM_CONTEXT_LOG_METADATA ||
+             ctx->context_type == CM_CONTEXT_LOG_BODY)) {
             continue;
         }
 

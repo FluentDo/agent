@@ -1,105 +1,119 @@
 ---
 name: Build macOS packages
 on:
-    workflow_call:
-        inputs:
-            version:
-                description: The version we are building for (as a numeric value 1.2.3).
-                required: true
-                type: string
-            ref:
-                description: The commit, tag or branch of Fluent Bit to checkout for building that creates the version above.
-                type: string
-                required: true
-            nightly-build-info:
-                description: Any special information to add to the nightly build information string.
-                required: false
-                type: string
-                default: ""
+  workflow_call:
+    inputs:
+      version:
+        description: The version we are building for (as a numeric value 1.2.3).
+        required: true
+        type: string
+      ref:
+        description: The commit, tag or branch of Fluent Bit to checkout for building that creates the version above.
+        type: string
+        required: true
+      nightly-build-info:
+        description: Any special information to add to the nightly build information string.
+        required: false
+        type: string
+        default: ""
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
 jobs:
-    call-build-macos-package:
-        name: Building ${{ matrix.config.name }} package
-        runs-on: ${{ matrix.config.runner }}
-        timeout-minutes: 60
-        strategy:
-            fail-fast: false
-            matrix:
-                config:
-                    - name: "macOS Intel silicon"
-                      runner: macos-15-intel
-                      package: "intel"
-                    - name: "macOS Apple silicon"
-                      runner: macos-15
-                      package: "apple"
-        permissions:
-            contents: read
-        steps:
-            - name: Checkout ${{ inputs.ref }} code
-              uses: actions/checkout@v6
-              with:
-                  ref: ${{ inputs.ref }}
-                  repository: FluentDo/agent
+  call-build-macos-package:
+    name: Building ${{ matrix.config.name }} package
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "macOS Intel silicon"
+            runner: macos-15-intel
+            package: "intel"
+          - name: "macOS Apple silicon"
+            runner: macos-15
+            package: "apple"
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
-            - name: Install dependencies
-              run: |
-                  brew update
-                  # We ignore errors here as some packages may already be installed
-                  brew install bison flex gnu-sed libyaml openssl pkgconfig libgit2 cyrus-sasl rocksdb libtool || true
-                  # Remove dynamic linkage for libyaml
-                  rm -fv $(brew --prefix libyaml)/lib/*.dylib
-                  # Remove dynamic linkage for zstd added by curl install
-                  rm -fv $(brew --prefix zstd)/lib/*.dylib
-                  # Remove dynamic linkage for openssl
-                  rm -fv $(brew --prefix openssl)/lib/*.dylib
-                  # Keep libgit2 dylib (Homebrew doesn't provide static libs)
-                  # rm -fv $(brew --prefix libgit2)/lib/*.dylib
-                  # Remove dynamic linkage for cyrus-sasl
-                  rm -fv $(brew --prefix cyrus-sasl)/lib/*.dylib
+      - name: Checkout ${{ inputs.ref }} code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+          repository: telemetryforge/agent
 
-            - name: Install cmake
-              uses: jwlawson/actions-setup-cmake@v2
-              with:
-                  cmake-version: "3.31.6"
+      - name: Install dependencies
+        run: |
+          brew update
+          # We ignore errors here as some packages may already be installed
+          brew install bison flex gnu-sed libyaml openssl pkgconfig libgit2 cyrus-sasl rocksdb libtool || true
+          # Remove dynamic linkage for libyaml
+          rm -fv $(brew --prefix libyaml)/lib/*.dylib
+          # Remove dynamic linkage for zstd added by curl install
+          rm -fv $(brew --prefix zstd)/lib/*.dylib
+          # Remove dynamic linkage for openssl
+          rm -fv $(brew --prefix openssl)/lib/*.dylib
+          # Keep libgit2 dylib (Homebrew doesn't provide static libs)
+          # rm -fv $(brew --prefix libgit2)/lib/*.dylib
+          # Remove dynamic linkage for cyrus-sasl
+          rm -fv $(brew --prefix cyrus-sasl)/lib/*.dylib
 
-            - name: Ensure we apply specific version from tag
-              run: ./scripts/setup-code.sh
-              shell: bash
-              env:
-                  FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
+      - name: Install cmake
+        uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
+        with:
+          cmake-version: "3.31.6"
 
-            - name: Ensure we have a build directory
-              run: mkdir -p source/build
-              shell: bash
+      - name: Ensure we apply specific version from tag
+        run: ./scripts/setup-code.sh
+        shell: bash
+        env:
+          TELEMETRY_FORGE_AGENT_VERSION: ${{ inputs.version }}
+          # Support legacy version variable for backwards compatibility
+          FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
 
-            - name: Deltas
-              run: git diff
-              shell: bash
+      - name: Ensure we have a build directory
+        run: mkdir -p source/build
+        shell: bash
 
-            - name: Build hardened Fluent Bit packages
-              run: |
-                  export LIBRARY_PATH="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib:$LIBRARY_PATH"
-                  export PKG_CONFIG_PATH="$(brew --prefix cyrus-sasl)/lib/pkgconfig:$PKG_CONFIG_PATH"
+      - name: Deltas
+        run: git diff
+        shell: bash
 
-                  cmake \
-                    -DOPENSSL_USE_STATIC_LIBS=ON \
-                    -DCMAKE_BUILD_TYPE=Release \
-                    -DCPACK_GENERATOR=productbuild \
-                    -DFLB_NIGHTLY_BUILD=${{ inputs.nightly-build-info }} ../
+      - name: Build hardened Fluent Bit packages
+        run: |
+          export LIBRARY_PATH="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib:$LIBRARY_PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix cyrus-sasl)/lib/pkgconfig:$PKG_CONFIG_PATH"
 
-                  cmake --build .
-                  cpack -G productbuild
-              working-directory: source/build
+          cmake \
+            -DOPENSSL_USE_STATIC_LIBS=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCPACK_GENERATOR=productbuild \
+            -DFLB_NIGHTLY_BUILD=${{ inputs.nightly-build-info }} ../
 
-            - name: Check linkage
-              continue-on-error: true
-              run: |
-                  DYLD_PRINT_LIBRARIES=1 DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 DYLD_PRINT_RPATHS=1 bin/fluentdo-agent --dry-run
-              working-directory: source/build
+          cmake --build .
+          cpack -G productbuild
+        working-directory: source/build
 
-            - name: Upload build packages
-              uses: actions/upload-artifact@v5
-              with:
-                  name: package-macos-${{ matrix.config.package }}
-                  path: |
-                      source/build/fluentdo-agent-*.pkg
-                  if-no-files-found: error
+      - name: Check linkage of the built agents
+        continue-on-error: true
+        run: |
+          DYLD_PRINT_LIBRARIES=1 DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 DYLD_PRINT_RPATHS=1 bin/*-agent --dry-run
+        working-directory: source/build
+
+      - name: Upload build packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-macos-${{ matrix.config.package }}
+          path: |
+            source/build/*-agent-*.pkg
+          if-no-files-found: error

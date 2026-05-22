@@ -26,7 +26,7 @@ function skipIfNotLinux() {
 }
 
 function skipIfPackageNotInstalled() {
-	if [[ "${FLUENTDO_AGENT_PACKAGE_INSTALLED:-}" != "true" ]]; then
+	if [[ "${TELEMETRY_FORGE_AGENT_PACKAGE_INSTALLED:-}" != "true" ]]; then
 		skip 'Skipping test: package not installed'
 	fi
 }
@@ -65,11 +65,11 @@ function skipIfNotMacOS() {
 }
 
 function skipIfNotContainer() {
-	if [ -z "${FLUENTDO_AGENT_IMAGE}" ]; then
-        skip "Skipping test: FLUENTDO_AGENT_IMAGE not set"
+	if [ -z "${TELEMETRY_FORGE_AGENT_IMAGE}" ]; then
+        skip "Skipping test: TELEMETRY_FORGE_AGENT_IMAGE not set"
     fi
-    if [ -z "${FLUENTDO_AGENT_TAG}" ]; then
-        fail "FLUENTDO_AGENT_TAG not set"
+    if [ -z "${TELEMETRY_FORGE_AGENT_TAG}" ]; then
+        fail "TELEMETRY_FORGE_AGENT_TAG not set"
     fi
 	CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
 	# All container tests assume Docker is available and can run containers
@@ -227,4 +227,87 @@ function helmTeardown() {
         cleanupHelmNamespace "$NAMESPACE" "$HELM_RELEASE_NAME"
     fi
 	export DETIK_CLIENT_NAMESPACE=''
+}
+
+# Starts fluent-bit in the background, redirecting output to a temp file
+# Sets FB_PID and FB_LOG as global variables
+function startFluentBit() {
+    FB_LOG=$(mktemp)
+    "$FLUENT_BIT_BINARY" "$@" > "$FB_LOG" 2>&1 &
+    FB_PID=$!
+	echo "Started $FLUENT_BIT_BINARY with PID $FB_PID and log file $FB_LOG: $*"
+}
+
+# After a successful match, call this to record the current log position.
+# Future calls to waitForOutput can then only check for new output since this point
+function markLogPosition() {
+	if [[ -z "${FB_LOG:-}" ]]; then
+		fail "FB_LOG not set, cannot mark log position"
+	fi
+	FB_LOG_OFFSET=$(wc -c < "$FB_LOG")
+}
+
+function resetLogPosition() {
+	unset FB_LOG_OFFSET
+}
+
+# Waits for a specific pattern to appear in the log
+# Usage: waitForOutput "pattern" [timeout_seconds]
+# Default timeout is 30 seconds
+function waitForOutputFromOffset() {
+    local pattern="$1"
+    local timeout="${2:-30}"
+    local offset="${3:-0}"
+    local elapsed=0
+    local interval=1
+
+	if [[ -z "${FB_LOG:-}" ]]; then
+		fail "FB_LOG not set, cannot wait for output"
+	fi
+
+	if [[ -z "${FB_PID:-}" ]]; then
+		fail "FB_PID not set, cannot wait for output"
+	fi
+
+    while (( elapsed < timeout )); do
+        if tail -c +"$((offset + 1))" "$FB_LOG" 2>/dev/null | grep -qE "$pattern"; then
+            return 0
+        fi
+
+        if ! kill -0 "$FB_PID" 2>/dev/null; then
+            cat "$FB_LOG"
+            fail "$FLUENT_BIT_BINARY exited unexpectedly."
+            return 1
+        fi
+
+        sleep "$interval"
+        elapsed=$(( elapsed + interval ))
+    done
+
+    echo "Log contents (from offset ${offset}):"
+    tail -c +"$((offset + 1))" "$FB_LOG"
+    fail "Timed out after ${timeout}s waiting for new pattern: $pattern"
+	return 1
+}
+
+# Wait for a specific pattern to appear in the log since the start of the log (i.e. not just new output since the last marked position)
+function waitForOutput() {
+	waitForOutputFromOffset "$1" "$2" 0
+}
+
+# Wait for a specific pattern to appear in the log since the last marked position
+function waitForNewOutput() {
+	waitForOutputFromOffset "$1" "$2" "${FB_LOG_OFFSET:-0}"
+}
+
+# Cleanup function to kill fluent-bit and remove temp files
+function stopFluentBit() {
+    if [[ -n "${FB_PID:-}" ]] && kill -0 "$FB_PID" 2>/dev/null; then
+        kill -9 "$FB_PID"
+        wait "$FB_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${FB_LOG:-}" ]]; then
+        rm -f "$FB_LOG"
+    fi
+	resetLogPosition
 }

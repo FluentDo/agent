@@ -13,6 +13,7 @@ set(UNIT_TESTS_FILES
   kv.c
   slist.c
   router.c
+  router_config.c
   network.c
   unit_sizes.c
   hashtable.c
@@ -23,7 +24,9 @@ set(UNIT_TESTS_FILES
   random.c
   config_map.c
   mp.c
+  mp_chunk_cobj.c
   input_chunk.c
+  input_chunk_routes.c
   flb_time.c
   file.c
   csv.c
@@ -53,6 +56,7 @@ set(UNIT_TESTS_FILES
   storage_inherit.c
   unicode.c
   opentelemetry.c
+  storage_dlq.c
 )
 
 # TLS helpers
@@ -141,6 +145,7 @@ if(FLB_AWS)
     ${UNIT_TESTS_FILES}
     aws_util.c
     aws_compress.c
+    aws_aggregation.c
     aws_credentials.c
     aws_credentials_ec2.c
     aws_credentials_sts.c
@@ -185,7 +190,7 @@ set(UNIT_TESTS_DATA
   data/parser/regex.conf
   data/input_chunk/log/a_thousand_plus_one_bytes.log
   data/input_chunk/log/test_buffer_valid.log
-  data/opentelemetry/test_cases.json
+  data/opentelemetry/logs.json
   )
 
 set(FLB_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/)
