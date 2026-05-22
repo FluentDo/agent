@@ -293,8 +293,8 @@ detect_distro() {
     esac
 
     log_debug "Mapping DISTRO_ID=$DISTRO_ID to package format"
-	local detected_pkg_manager=""
-	local detected_pkg_format=""
+    local detected_pkg_manager=""
+    local detected_pkg_format=""
     case "$DISTRO_ID" in
         ubuntu|debian)
             detected_pkg_manager="apt-get"
@@ -306,7 +306,7 @@ detect_distro() {
             detected_pkg_format="rpm"
             log_debug "Mapped to: PKG_MANAGER=yum, PKG_FORMAT=rpm"
             ;;
-		opensuse-leap|suse|sles|opensuse)
+        opensuse-leap|suse|sles|opensuse)
             detected_pkg_manager="zypper"
             detected_pkg_format="rpm"
             log_debug "Mapped to: PKG_MANAGER=zypper, PKG_FORMAT=rpm"
@@ -323,19 +323,19 @@ detect_distro() {
             ;;
     esac
 
-	if [[ -n "${PKG_MANAGER:-}" ]]; then
-		log_debug "Using overridden package manager: $PKG_MANAGER"
-	else
-		PKG_MANAGER="$detected_pkg_manager"
-		log_debug "Using detected package manager: $PKG_MANAGER"
-	fi
+    if [[ -n "${PKG_MANAGER:-}" ]]; then
+        log_debug "Using overridden package manager: $PKG_MANAGER"
+    else
+        PKG_MANAGER="$detected_pkg_manager"
+        log_debug "Using detected package manager: $PKG_MANAGER"
+    fi
 
-	if [[ -n "${PKG_FORMAT:-}" ]]; then
-		log_debug "Using overridden package format: $PKG_FORMAT"
-	else
-		PKG_FORMAT="$detected_pkg_format"
-		log_debug "Using detected package format: $PKG_FORMAT"
-	fi
+    if [[ -n "${PKG_FORMAT:-}" ]]; then
+        log_debug "Using overridden package format: $PKG_FORMAT"
+    else
+        PKG_FORMAT="$detected_pkg_format"
+        log_debug "Using detected package format: $PKG_FORMAT"
+    fi
 
     log_success "Detected distribution: $DISTRO_ID $DISTRO_VERSION (format: $PKG_FORMAT)"
 }
