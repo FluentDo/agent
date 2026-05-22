@@ -125,11 +125,6 @@ jobs:
           C:\vcpkg\vcpkg install --recurse libyaml --triplet ${{ matrix.config.vcpkg_triplet }}
         shell: cmd
 
-      - name: Install zstd with vcpkg
-        run: |
-          C:\vcpkg\vcpkg install --recurse zstd --triplet ${{ matrix.config.vcpkg_triplet }}
-        shell: cmd
-
       - name: Install libgit2 with vcpkg
         # Note that this has a dependency on zlib we need to satisfy, ideally from our vendored version
         # but that is not possible in this case without building from source.
@@ -166,7 +161,6 @@ jobs:
             -DFLB_LIBYAML_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}' `
             -DLIBGIT2_INCLUDE_DIR='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}\include' `
             -DLIBGIT2_LIBRARY='C:\vcpkg\installed\${{ matrix.config.vcpkg_triplet }}\lib\git2.lib' `
-            -DFLB_PREFER_SYSTEM_LIB_ZSTD=On `
             -DTELEMETRY_FORGE_AGENT_DISTRO=${{ matrix.config.distro }} `
             -DTELEMETRY_FORGE_AGENT_PACKAGE_TYPE=PACKAGE `
             -DFLUENTDO_AGENT_DISTRO=${{ matrix.config.distro }} `
