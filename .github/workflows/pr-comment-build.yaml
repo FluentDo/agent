@@ -40,7 +40,7 @@ jobs:
       linux-targets-json: ${{ steps.parse.outputs.linux_targets_json }}
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
       - name: Log useful info
@@ -115,7 +115,7 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
@@ -187,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
