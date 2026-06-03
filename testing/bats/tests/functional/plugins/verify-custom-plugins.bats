@@ -24,6 +24,15 @@ teardown() {
     refute_output --partial "[error]"
 }
 
+@test "verify custom telemetryforge plugin exists" {
+    run "$FLUENT_BIT_BINARY" --help
+    assert_success
+    assert_output --partial "telemetryforge"
+    run "$FLUENT_BIT_BINARY" -C "telemetryforge" --help
+    assert_success
+    refute_output --partial "[error]"
+}
+
 # Processors cannot be individually queried unfortunately like custom plugins so we just check for their existence in the help output
 @test "verify log_sampling processor exists" {
     PLUGIN_NAME="log_sampling"
