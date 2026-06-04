@@ -37,6 +37,11 @@ on:
         required: false
         type: string
         default: "namespace-profile-ubuntu-latest-arm"
+      s390x-runner-label:
+        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
+        required: false
+        type: string
+        default: "ubuntu-24.04-s390x"
     secrets:
       cosign_private_key:
         description: The optional Cosign key to use for signing the images.
@@ -75,10 +80,11 @@ jobs:
         platform:
           - amd64
           - arm64
+          - s390x
         target:
           - production
     name: ${{ matrix.platform }}/${{ matrix.target }} container image build
-    runs-on: ${{ (contains(matrix.platform, 'arm') && inputs.arm-runner-label) || inputs.amd-runner-label }}
+    runs-on: ${{ (contains(matrix.platform, 'arm') && inputs.arm-runner-label) || (contains(matrix.platform, 's390x') && inputs.s390x-runner-label) || inputs.amd-runner-label }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -104,7 +110,7 @@ jobs:
 
       # Must be removed on Namespace runners
       - name: Set up QEMU
-        if: ${{ !contains( runner.name, 'nsc-' ) }}
+        if: ${{ !(contains( runner.name, 'nsc-' ) || contains( matrix.platform, 's390x' )) }}
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Set up Docker Buildx
