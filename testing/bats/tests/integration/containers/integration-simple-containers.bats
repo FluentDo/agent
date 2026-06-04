@@ -16,16 +16,21 @@ setup() {
 }
 
 # All container tests use the environment variable TELEMETRY_FORGE_AGENT_IMAGE to determine which image to test
-@test "integration: verify TELEMETRY_FORGE_AGENT_IMAGE is set" {
+@test "integration: verify TELEMETRY_FORGE_AGENT_IMAGE/TAG is set" {
     [ -n "${TELEMETRY_FORGE_AGENT_IMAGE}" ]
     [ -n "${TELEMETRY_FORGE_AGENT_TAG}" ]
 }
 
 # Verify we can pull and run the TELEMETRY_FORGE_AGENT_IMAGE
-@test "integration: verify pulling and running TELEMETRY_FORGE_AGENT_IMAGE" {
+@test "integration: verify pulling ${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}" {
+    if [[ "$TELEMETRY_FORGE_AGENT_TAG" == "local" ]]; then
+        skip "TELEMETRY_FORGE_AGENT_TAG is set to local, skipping pull test"
+    fi
     run "$CONTAINER_RUNTIME" pull "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}"
     assert_success
+}
 
+@test "integration: verify we can run the agent image and get version output" {
     run "$CONTAINER_RUNTIME" run --rm -t "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}" --version
     assert_success
     assert_output --partial "Telemetry Forge Agent v$TELEMETRY_FORGE_AGENT_VERSION"

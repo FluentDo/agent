@@ -1,0 +1,15 @@
+service:
+  flush: 1
+  grace: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      dummy: '{"message": "Dummy initial message"}'
+      alias: input_dummy
+
+  outputs:
+    - name: stdout
+      match: '*'
+      alias: output_stdout
