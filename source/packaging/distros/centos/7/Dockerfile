@@ -91,6 +91,11 @@ ENV FLB_JEMALLOC_OPTIONS=$FLB_JEMALLOC_OPTIONS
 # hadolint ignore=DL3006
 FROM $BASE_BUILDER AS builder
 
+ARG TELEMETRY_FORGE_AGENT_DISTRO
+ENV TELEMETRY_FORGE_AGENT_DISTRO=$TELEMETRY_FORGE_AGENT_DISTRO
+ARG TELEMETRY_FORGE_AGENT_PACKAGE_TYPE
+ENV TELEMETRY_FORGE_AGENT_PACKAGE_TYPE=$TELEMETRY_FORGE_AGENT_PACKAGE_TYPE
+
 # We need a more recent OpenSSL as well so build from source
 ADD https://github.com/openssl/openssl/releases/download/openssl-3.5.2/openssl-3.5.2.tar.gz /openssl/
 RUN tar -xzvf /openssl/openssl-3.5.2.tar.gz -C /openssl
@@ -116,6 +121,8 @@ RUN PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CON
     -DFLB_JEMALLOC_OPTIONS="$FLB_JEMALLOC_OPTIONS" \
     -DOPENSSL_ROOT_DIR=/openssl/openssl-3.5.2 \
     -DOPENSSL_USE_STATIC_LIBS=On \
+    -DTELEMETRY_FORGE_AGENT_DISTRO="$TELEMETRY_FORGE_AGENT_DISTRO" \
+    -DTELEMETRY_FORGE_AGENT_PACKAGE_TYPE="$TELEMETRY_FORGE_AGENT_PACKAGE_TYPE" \
     ../
 
 VOLUME [ "/output" ]
