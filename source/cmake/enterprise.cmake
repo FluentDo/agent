@@ -18,3 +18,20 @@ function(validate_required_options)
 
     message(STATUS "All required options validated successfully")
 endfunction()
+
+# Build metadata: distribution and package type
+if(DEFINED TELEMETRY_FORGE_AGENT_DISTRO AND NOT "${TELEMETRY_FORGE_AGENT_DISTRO}" STREQUAL "")
+  FLB_DEFINITION_VAL(TELEMETRY_FORGE_AGENT_DISTRO ${TELEMETRY_FORGE_AGENT_DISTRO})
+  message(STATUS "Build distro: ${TELEMETRY_FORGE_AGENT_DISTRO}")
+endif()
+
+if(DEFINED TELEMETRY_FORGE_AGENT_PACKAGE_TYPE AND NOT "${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}" STREQUAL "")
+  FLB_DEFINITION_VAL(TELEMETRY_FORGE_AGENT_PACKAGE_TYPE ${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE})
+  message(STATUS "Build package type: ${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}")
+endif()
+
+# Build metadata: version set by the build or default to the FLB_VERSION_STR version defined in the root file
+if(DEFINED TELEMETRY_FORGE_AGENT_VERSION AND NOT "${TELEMETRY_FORGE_AGENT_VERSION}" STREQUAL "")
+  FLB_DEFINITION_VAL(TELEMETRY_FORGE_AGENT_VERSION ${FLB_VERSION_STR})
+  message(STATUS "Build agent version: ${TELEMETRY_FORGE_AGENT_VERSION}")
+endif()
