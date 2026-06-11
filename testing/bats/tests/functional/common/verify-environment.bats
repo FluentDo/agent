@@ -10,16 +10,6 @@ load "$BATS_FILE_ROOT/load.bash"
 
 # bats file_tags=functional
 
-@test "verify preset env vars are always set" {
-    run "$FLUENT_BIT_BINARY" --help
-    assert_success
-
-    # Check that the env vars are set
-    assert_output --partial 'TELEMETRY_FORGE_AGENT_DISTRO'
-    assert_output --partial 'TELEMETRY_FORGE_AGENT_PACKAGE_TYPE'
-    assert_output --partial 'TELEMETRY_FORGE_AGENT_VERSION'
-}
-
 @test "verify preset env vars have correct values" {
     # We run Fluent Bit with a dummy input that uses the env vars in the config to ensure they are set and have correct values.
     # This will also use a stdout output plugin to print out the dummy record which will contain the env vars in the output, allowing us to assert on their values.
