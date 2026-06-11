@@ -120,6 +120,9 @@ jobs:
             FLB_BACKTRACE=Off
             FLB_SHARED_LIB=Off
 
+            TELEMETRY_FORGE_AGENT_DISTRO=ubuntu/latest
+            TELEMETRY_FORGE_AGENT_PACKAGE_TYPE=PACKAGE
+
             ${{ matrix.config.options }}
           run-build: false
 

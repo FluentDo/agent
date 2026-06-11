@@ -100,8 +100,6 @@ jobs:
             -DCPACK_GENERATOR=productbuild \
             -DTELEMETRY_FORGE_AGENT_DISTRO=${{ matrix.config.runner }} \
             -DTELEMETRY_FORGE_AGENT_PACKAGE_TYPE=PACKAGE \
-            -DFLUENTDO_AGENT_DISTRO=${{ matrix.config.runner }} \
-            -DFLUENTDO_AGENT_PACKAGE_TYPE=PACKAGE \
             -DFLB_NIGHTLY_BUILD=${{ inputs.nightly-build-info }} ../
 
           cmake --build .
