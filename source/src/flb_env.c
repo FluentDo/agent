@@ -64,6 +64,25 @@ static int env_preset(struct flb_env *env)
         }
     }
 
+
+    /*
+     * ${OS_TYPE} this variable is useful to identify the operating system
+     * where the agent is running, if it is not set, we will try to detect
+     * it and set it as a default variable.
+     */
+    buf = getenv("OS_TYPE");
+    if (!buf) {
+#if defined(FLB_SYSTEM_WINDOWS)
+        flb_env_set(env, "OS_TYPE", "windows");
+#elif defined(FLB_SYSTEM_MACOS)
+        flb_env_set(env, "OS_TYPE", "macos");
+#elif defined(FLB_SYSTEM_LINUX)
+        flb_env_set(env, "OS_TYPE", "linux");
+#else
+        flb_env_set(env, "OS_TYPE", "unknown");
+#endif
+    }
+
     return 0;
 }
 
