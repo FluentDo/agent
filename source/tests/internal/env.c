@@ -23,7 +23,127 @@
 #include <fluent-bit/flb_sds.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "flb_tests_internal.h"
+
+static const char *expected_os_type()
+{
+#if defined(FLB_SYSTEM_WINDOWS)
+    return "windows";
+#elif defined(FLB_SYSTEM_MACOS)
+    return "macos";
+#elif defined(FLB_SYSTEM_LINUX)
+    return "linux";
+#else
+    return "unknown";
+#endif
+}
+
+void test_preset_env_defaults()
+{
+    struct flb_env *env;
+    const char *hostname;
+    const char *os_type;
+
+    env = flb_env_create();
+    if (!TEST_CHECK(env != NULL)) {
+        TEST_MSG("flb_env_create failed");
+        exit(1);
+    }
+
+    hostname = flb_env_get(env, "HOSTNAME");
+    if (!TEST_CHECK(hostname != NULL && strlen(hostname) > 0)) {
+        TEST_MSG("HOSTNAME preset is missing");
+        flb_env_destroy(env);
+        exit(1);
+    }
+
+    os_type = flb_env_get(env, "OS_TYPE");
+    if (!TEST_CHECK(os_type != NULL && strlen(os_type) > 0)) {
+        TEST_MSG("OS_TYPE preset is missing");
+        flb_env_destroy(env);
+        exit(1);
+    }
+
+    if (!TEST_CHECK(strcmp(os_type, expected_os_type()) == 0)) {
+        TEST_MSG("OS_TYPE mismatch. Got=%s expect=%s", os_type, expected_os_type());
+        flb_env_destroy(env);
+        exit(1);
+    }
+
+    flb_env_destroy(env);
+}
+
+void test_preset_env_overrides()
+{
+    struct flb_env *env;
+    const char *hostname;
+    const char *os_type;
+    const char *override_hostname = "env-test-host";
+    const char *override_os_type = "env-test-os";
+    int ret;
+    char hostname_arg[128];
+    char os_type_arg[128];
+
+    snprintf(hostname_arg, sizeof(hostname_arg), "HOSTNAME=%s", override_hostname);
+    snprintf(os_type_arg, sizeof(os_type_arg), "OS_TYPE=%s", override_os_type);
+
+#if defined(FLB_SYSTEM_WINDOWS)
+    ret = _putenv(hostname_arg);
+    if (!TEST_CHECK(ret == 0)) {
+        TEST_MSG("_putenv HOSTNAME failed");
+        exit(1);
+    }
+
+    ret = _putenv(os_type_arg);
+    if (!TEST_CHECK(ret == 0)) {
+        TEST_MSG("_putenv OS_TYPE failed");
+        exit(1);
+    }
+#else
+    ret = setenv("HOSTNAME", override_hostname, 1);
+    if (!TEST_CHECK(ret == 0)) {
+        TEST_MSG("setenv HOSTNAME failed");
+        exit(1);
+    }
+
+    ret = setenv("OS_TYPE", override_os_type, 1);
+    if (!TEST_CHECK(ret == 0)) {
+        TEST_MSG("setenv OS_TYPE failed");
+        exit(1);
+    }
+#endif
+
+    env = flb_env_create();
+    if (!TEST_CHECK(env != NULL)) {
+        TEST_MSG("flb_env_create failed");
+        exit(1);
+    }
+
+    hostname = flb_env_get(env, "HOSTNAME");
+    if (!TEST_CHECK(hostname != NULL && strcmp(hostname, override_hostname) == 0)) {
+        TEST_MSG("HOSTNAME override lost. Got=%s expect=%s", hostname, override_hostname);
+        flb_env_destroy(env);
+        exit(1);
+    }
+
+    os_type = flb_env_get(env, "OS_TYPE");
+    if (!TEST_CHECK(os_type != NULL && strcmp(os_type, override_os_type) == 0)) {
+        TEST_MSG("OS_TYPE override lost. Got=%s expect=%s", os_type, override_os_type);
+        flb_env_destroy(env);
+        exit(1);
+    }
+
+    flb_env_destroy(env);
+
+#if defined(FLB_SYSTEM_WINDOWS)
+    _putenv("HOSTNAME=");
+    _putenv("OS_TYPE=");
+#else
+    unsetenv("HOSTNAME");
+    unsetenv("OS_TYPE");
+#endif
+}
 
 /* https://github.com/fluent/fluent-bit/issues/6313 */
 void test_translate_long_env()
@@ -86,6 +206,8 @@ void test_translate_long_env()
 
 
 TEST_LIST = {
+    { "preset_env_defaults"         , test_preset_env_defaults},
+    { "preset_env_overrides"        , test_preset_env_overrides},
     { "translate_long_env"           , test_translate_long_env},
     { NULL, NULL }
 };
