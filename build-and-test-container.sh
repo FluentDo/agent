@@ -30,4 +30,9 @@ ${CONTAINER_RUNTIME:-docker} build --target=production \
   -t "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}" \
   -f "$SCRIPT_DIR/$DOCKERFILE" "$SCRIPT_DIR/"
 
+${CONTAINER_RUNTIME:-docker} build --target=test \
+  -t "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}-test" \
+  -f "$SCRIPT_DIR/$DOCKERFILE" "$SCRIPT_DIR/"
+
+docker run --rm -t "${TELEMETRY_FORGE_AGENT_IMAGE}:${TELEMETRY_FORGE_AGENT_TAG}-test"
 "$SCRIPT_DIR"/testing/bats/run-container-integration-tests.sh
