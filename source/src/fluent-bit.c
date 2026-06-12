@@ -191,6 +191,15 @@ static void flb_help(int rc, struct flb_config *config)
     printf("\n%sInternal%s\n", ANSI_BOLD, ANSI_RESET);
     printf(" Event Loop  = %s\n", mk_event_backend());
     printf(" Build Flags =%s\n", FLB_INFO_FLAGS);
+
+    /*
+     * Print out any custom TF agent info we have.
+     */
+    printf("\n%sTelemetry Forge Agent%s\n", ANSI_BOLD, ANSI_RESET);
+    printf(" Distro  =%s\n", TELEMETRY_FORGE_AGENT_DISTRO_FLAG);
+    printf(" Package =%s\n", TELEMETRY_FORGE_AGENT_PACKAGE_TYPE_FLAG);
+    printf(" Version =%s\n", TELEMETRY_FORGE_AGENT_VERSION_FLAG);
+
     exit(rc);
 }
 
