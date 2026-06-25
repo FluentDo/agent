@@ -104,23 +104,23 @@ void test_preset_env_defaults()
         exit(1);
     }
 
-    agent_distro = flb_env_get(env, "TELEMETRY_FORGE_AGENT_DISTRO");
+    agent_distro = flb_env_get(env, "AGENT_DISTRO");
     if (!TEST_CHECK(agent_distro != NULL && strcmp(agent_distro, expected_agent_distro()) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_DISTRO mismatch. Got=%s expect=%s", agent_distro, expected_agent_distro());
+        TEST_MSG("AGENT_DISTRO mismatch. Got=%s expect=%s", agent_distro, expected_agent_distro());
         flb_env_destroy(env);
         exit(1);
     }
 
-    agent_package_type = flb_env_get(env, "TELEMETRY_FORGE_AGENT_PACKAGE_TYPE");
+    agent_package_type = flb_env_get(env, "AGENT_PACKAGE_TYPE");
     if (!TEST_CHECK(agent_package_type != NULL && strcmp(agent_package_type, expected_agent_package_type()) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_PACKAGE_TYPE mismatch. Got=%s expect=%s", agent_package_type, expected_agent_package_type());
+        TEST_MSG("AGENT_PACKAGE_TYPE mismatch. Got=%s expect=%s", agent_package_type, expected_agent_package_type());
         flb_env_destroy(env);
         exit(1);
     }
 
-    agent_version = flb_env_get(env, "TELEMETRY_FORGE_AGENT_VERSION");
+    agent_version = flb_env_get(env, "AGENT_VERSION");
     if (!TEST_CHECK(agent_version != NULL && strcmp(agent_version, expected_agent_version()) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_VERSION mismatch. Got=%s expect=%s", agent_version, expected_agent_version());
+        TEST_MSG("AGENT_VERSION mismatch. Got=%s expect=%s", agent_version, expected_agent_version());
         flb_env_destroy(env);
         exit(1);
     }
@@ -150,9 +150,9 @@ void test_preset_env_overrides()
 
     snprintf(hostname_arg, sizeof(hostname_arg), "HOSTNAME=%s", override_hostname);
     snprintf(os_type_arg, sizeof(os_type_arg), "OS_TYPE=%s", override_os_type);
-    snprintf(agent_distro_arg, sizeof(agent_distro_arg), "TELEMETRY_FORGE_AGENT_DISTRO=%s", override_agent_distro);
-    snprintf(agent_package_type_arg, sizeof(agent_package_type_arg), "TELEMETRY_FORGE_AGENT_PACKAGE_TYPE=%s", override_agent_package_type);
-    snprintf(agent_version_arg, sizeof(agent_version_arg), "TELEMETRY_FORGE_AGENT_VERSION=%s", override_agent_version);
+    snprintf(agent_distro_arg, sizeof(agent_distro_arg), "AGENT_DISTRO=%s", override_agent_distro);
+    snprintf(agent_package_type_arg, sizeof(agent_package_type_arg), "AGENT_PACKAGE_TYPE=%s", override_agent_package_type);
+    snprintf(agent_version_arg, sizeof(agent_version_arg), "AGENT_VERSION=%s", override_agent_version);
 
 #if defined(FLB_SYSTEM_WINDOWS)
     ret = _putenv(hostname_arg);
@@ -169,19 +169,19 @@ void test_preset_env_overrides()
 
     ret = _putenv(agent_distro_arg);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("_putenv TELEMETRY_FORGE_AGENT_DISTRO failed");
+        TEST_MSG("_putenv AGENT_DISTRO failed");
         exit(1);
     }
 
     ret = _putenv(agent_package_type_arg);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("_putenv TELEMETRY_FORGE_AGENT_PACKAGE_TYPE failed");
+        TEST_MSG("_putenv AGENT_PACKAGE_TYPE failed");
         exit(1);
     }
 
     ret = _putenv(agent_version_arg);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("_putenv TELEMETRY_FORGE_AGENT_VERSION failed");
+        TEST_MSG("_putenv AGENT_VERSION failed");
         exit(1);
     }
 #else
@@ -197,21 +197,21 @@ void test_preset_env_overrides()
         exit(1);
     }
 
-    ret = setenv("TELEMETRY_FORGE_AGENT_DISTRO", override_agent_distro, 1);
+    ret = setenv("AGENT_DISTRO", override_agent_distro, 1);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("setenv TELEMETRY_FORGE_AGENT_DISTRO failed");
+        TEST_MSG("setenv AGENT_DISTRO failed");
         exit(1);
     }
 
-    ret = setenv("TELEMETRY_FORGE_AGENT_PACKAGE_TYPE", override_agent_package_type, 1);
+    ret = setenv("AGENT_PACKAGE_TYPE", override_agent_package_type, 1);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("setenv TELEMETRY_FORGE_AGENT_PACKAGE_TYPE failed");
+        TEST_MSG("setenv AGENT_PACKAGE_TYPE failed");
         exit(1);
     }
 
-    ret = setenv("TELEMETRY_FORGE_AGENT_VERSION", override_agent_version, 1);
+    ret = setenv("AGENT_VERSION", override_agent_version, 1);
     if (!TEST_CHECK(ret == 0)) {
-        TEST_MSG("setenv TELEMETRY_FORGE_AGENT_VERSION failed");
+        TEST_MSG("setenv AGENT_VERSION failed");
         exit(1);
     }
 #endif
@@ -236,23 +236,23 @@ void test_preset_env_overrides()
         exit(1);
     }
 
-    agent_distro = flb_env_get(env, "TELEMETRY_FORGE_AGENT_DISTRO");
+    agent_distro = flb_env_get(env, "AGENT_DISTRO");
     if (!TEST_CHECK(agent_distro != NULL && strcmp(agent_distro, override_agent_distro) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_DISTRO override lost. Got=%s expect=%s", agent_distro, override_agent_distro);
+        TEST_MSG("AGENT_DISTRO override lost. Got=%s expect=%s", agent_distro, override_agent_distro);
         flb_env_destroy(env);
         exit(1);
     }
 
-    agent_package_type = flb_env_get(env, "TELEMETRY_FORGE_AGENT_PACKAGE_TYPE");
+    agent_package_type = flb_env_get(env, "AGENT_PACKAGE_TYPE");
     if (!TEST_CHECK(agent_package_type != NULL && strcmp(agent_package_type, override_agent_package_type) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_PACKAGE_TYPE override lost. Got=%s expect=%s", agent_package_type, override_agent_package_type);
+        TEST_MSG("AGENT_PACKAGE_TYPE override lost. Got=%s expect=%s", agent_package_type, override_agent_package_type);
         flb_env_destroy(env);
         exit(1);
     }
 
-    agent_version = flb_env_get(env, "TELEMETRY_FORGE_AGENT_VERSION");
+    agent_version = flb_env_get(env, "AGENT_VERSION");
     if (!TEST_CHECK(agent_version != NULL && strcmp(agent_version, override_agent_version) == 0)) {
-        TEST_MSG("TELEMETRY_FORGE_AGENT_VERSION override lost. Got=%s expect=%s", agent_version, override_agent_version);
+        TEST_MSG("AGENT_VERSION override lost. Got=%s expect=%s", agent_version, override_agent_version);
         flb_env_destroy(env);
         exit(1);
     }
@@ -262,15 +262,15 @@ void test_preset_env_overrides()
 #if defined(FLB_SYSTEM_WINDOWS)
     _putenv("HOSTNAME=");
     _putenv("OS_TYPE=");
-    _putenv("TELEMETRY_FORGE_AGENT_DISTRO=");
-    _putenv("TELEMETRY_FORGE_AGENT_PACKAGE_TYPE=");
-    _putenv("TELEMETRY_FORGE_AGENT_VERSION=");
+    _putenv("AGENT_DISTRO=");
+    _putenv("AGENT_PACKAGE_TYPE=");
+    _putenv("AGENT_VERSION=");
 #else
     unsetenv("HOSTNAME");
     unsetenv("OS_TYPE");
-    unsetenv("TELEMETRY_FORGE_AGENT_DISTRO");
-    unsetenv("TELEMETRY_FORGE_AGENT_PACKAGE_TYPE");
-    unsetenv("TELEMETRY_FORGE_AGENT_VERSION");
+    unsetenv("AGENT_DISTRO");
+    unsetenv("AGENT_PACKAGE_TYPE");
+    unsetenv("AGENT_VERSION");
 #endif
 }
 
