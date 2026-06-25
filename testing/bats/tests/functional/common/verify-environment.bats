@@ -36,7 +36,7 @@ load "$BATS_FILE_ROOT/load.bash"
     assert_success
     refute_output --partial "[error]"
 
-    # The input string is '{"distro": "${TELEMETRY_FORGE_AGENT_DISTRO}", "package_type": "${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}", "version": "${TELEMETRY_FORGE_AGENT_VERSION}", "os": "${OS_TYPE}"}'
+    # The input string is '{"distro": "${AGENT_DISTRO}", "package_type": "${AGENT_PACKAGE_TYPE}", "version": "${AGENT_VERSION}", "os": "${OS_TYPE}"}'
     # distro will be set to a value like "ubuntu/latest" or "amazonlinux/2023"
     # package_type will be set to "PACKAGE" or "CONTAINER"
     # version will be set to the agent version like "0.1.0"

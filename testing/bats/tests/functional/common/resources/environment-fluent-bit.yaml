@@ -7,7 +7,7 @@ pipeline:
   inputs:
     - name: dummy
       # We use the environment variables to verify that they are set correctly based on the build and packaging configuration of the agent.
-      dummy: '{"distro": "${TELEMETRY_FORGE_AGENT_DISTRO}", "package_type": "${TELEMETRY_FORGE_AGENT_PACKAGE_TYPE}", "version": "${TELEMETRY_FORGE_AGENT_VERSION}", "os": "${OS_TYPE}"}'
+      dummy: '{"distro": "${AGENT_DISTRO}", "package_type": "${AGENT_PACKAGE_TYPE}", "version": "${AGENT_VERSION}", "os": "${OS_TYPE}"}'
       alias: input_dummy
 
   outputs:
