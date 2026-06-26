@@ -70,6 +70,7 @@ All reusable workflows are in files prefixed `call-`. They are invoked via `uses
 |---|---|
 | `call-get-metadata.yaml` | Extracts build metadata (version, date, linux targets, OSS version) — handles differences between PR, staging, and release builds using boolean inputs |
 | `call-build-containers.yaml` | Builds multi-arch container images and signs them |
+| `call-build-container-manifest-and-sign.yaml` | Builds and signs a multi-arch manifest for a single image base |
 | `call-build-linux-packages.yaml` | Builds DEB/RPM packages for all Linux targets |
 | `call-build-windows-packages.yaml` | Builds Windows packages (EXE, MSI, ZIP) |
 | `call-build-macos-packages.yaml` | Builds macOS packages (PKG) |

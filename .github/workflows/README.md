@@ -474,22 +474,47 @@ get-metadata:
 
 **Jobs:**
 
-1. **build-single-arch-container-images** - Matrix-calls single-arch builds across image variants and selected platforms
-2. **build-container-image-manifest** - Creates per-image multi-arch manifests
-3. **build-container-images-sign** - Signs each image manifest with Cosign
+1. **build-ubi-single-arch-container-images** - Matrix-calls single-arch builds for UBI across selected platforms
+2. **build-debian-single-arch-container-images** - Matrix-calls single-arch builds for Debian across selected platforms
+3. **build-ubi-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for UBI image
+4. **build-debian-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for Debian image
 
 **Outputs:**
 
-- `tag` - Full image name and tag
-- `version` - Container version
+- `version` - Resolved container image version tag from `docker/metadata-action` (event-aware and tag-prefix safe)
 
 **Key Features:**
 
 - Multi-architecture support (AMD64, ARM64, s390x)
-- Internal image matrix for UBI and Debian variants
+- Separate UBI and Debian build chains so each manifest/sign job depends only on its own image digests
+- Explicit per-image manifest/sign calls (no matrix in orchestration layer)
 - Image signing with Cosign (key-based and OIDC)
 - Digest-based manifest creation
 - Test image for BATS tests (AMD64 only)
+
+### Build Container Manifest And Sign
+
+**File:** [`.github/workflows/call-build-container-manifest-and-sign.yaml`](./call-build-container-manifest-and-sign.yaml)
+
+**Purpose:** Reusable per-image manifest creation and signing workflow.
+
+**Inputs:**
+
+- `image-base` - Full image base name (`ghcr.io/telemetryforge/agent/ubi` or `ghcr.io/telemetryforge/agent/debian`)
+
+**Secrets:**
+
+- `cosign_private_key` - Cosign signing key
+- `cosign_private_key_password` - Cosign key password
+
+**Jobs:**
+
+1. **build-container-images-manifest** - Creates and publishes multi-arch image manifest and resolves metadata version
+2. **build-container-images-sign** - Signs the published image manifest (key and OIDC)
+
+**Outputs:**
+
+- `version` - Resolved container image version tag from `docker/metadata-action`
 
 ### Build Single Architecture Container
 
@@ -865,33 +890,38 @@ sequenceDiagram
 sequenceDiagram
   participant Caller as Calling Workflow
   participant Multi as call-build-containers
-  participant Single as call-build-container-single-arch
-  participant Manifest as build-container-image-manifest
-  participant Sign as build-container-images-sign
+  participant SingleUBI as call-build-container-single-arch (UBI)
+  participant SingleDeb as call-build-container-single-arch (Debian)
+  participant PerImage as call-build-container-manifest-and-sign
     participant Registry as GHCR
 
   Caller->>Multi: with version/ref/platforms/nightly-build-info
-  Multi->>Multi: Matrix image-base=[UBI,Debian]
-  Multi->>Multi: Matrix platform=from inputs.platforms
 
-  par For each image-base x platform
-    Multi->>Single: Invoke single-arch reusable workflow
-    Single->>Single: Build production image by digest
+  par For each UBI platform
+    Multi->>SingleUBI: Invoke single-arch reusable workflow
+    SingleUBI->>SingleUBI: Build production image by digest
     alt platform == amd64
-      Single->>Single: Build amd64 test image
+      SingleUBI->>SingleUBI: Build amd64 test image
     end
-    Single->>Registry: Push image digest(s)
-    Single-->>Multi: Upload digest artifact
+    SingleUBI->>Registry: Push image digest(s)
+    SingleUBI-->>Multi: Upload digest artifact
+  and For each Debian platform
+    Multi->>SingleDeb: Invoke single-arch reusable workflow
+    SingleDeb->>SingleDeb: Build production image by digest
+    alt platform == amd64
+      SingleDeb->>SingleDeb: Build amd64 test image
     end
+    SingleDeb->>Registry: Push image digest(s)
+    SingleDeb-->>Multi: Upload digest artifact
+  end
 
-    Manifest->>Manifest: Download all digests
-  Manifest->>Manifest: Create per-image multi-arch manifest
-  Manifest->>Registry: Push manifests
-
-    Manifest->>Sign: Trigger signing
-  Sign->>Sign: Sign manifests with key (optional)
-  Sign->>Sign: Sign manifests with OIDC
-    Sign->>Registry: Push signatures
+    Multi->>PerImage: Invoke for UBI image
+    PerImage->>PerImage: Build and push UBI manifest
+    PerImage->>PerImage: Sign UBI manifest
+    Multi->>PerImage: Invoke for Debian image
+    PerImage->>PerImage: Build and push Debian manifest
+    PerImage->>PerImage: Sign Debian manifest
+    PerImage->>Registry: Push manifests and signatures
 ```
 
 ### Package Build and Test Flow
