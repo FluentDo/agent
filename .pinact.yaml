@@ -16,4 +16,4 @@ rules:
   - ignore: true
     conditions:
       - expr: |
-          ActionRepoOwner == "telemetryforge" && ActionVersion == "main"
+          ActionRepoOwner == "telemetryforge" && ActionVersion == "22ab1e2f40c0c20b59beb1db70ce804b61b8b719"
