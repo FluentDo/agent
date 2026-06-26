@@ -10,13 +10,17 @@ This directory contains the GitHub Actions workflows and reusable actions for th
   - [Table of Contents](#table-of-contents)
   - [Overview](#overview)
   - [Workflows](#workflows)
-    - [Build and Test](#build-and-test)
+    - [Filename Conventions](#filename-conventions)
+    - [PR Build and Test](#pr-build-and-test)
+    - [Branch Build and Test](#branch-build-and-test)
+    - [Release](#release)
     - [Unit Tests](#unit-tests)
-    - [Lint](#lint)
-    - [Lint Packages](#lint-packages)
+    - [Lint PRs](#lint-prs)
+    - [Lint Package PRs](#lint-package-prs)
     - [Test Specific Versions](#test-specific-versions)
     - [Auto Release](#auto-release)
-    - [Update Version](#update-version)
+    - [Update Version on Release](#update-version-on-release)
+    - [LTS Branch Updates](#lts-branch-updates)
   - [Reusable Workflows](#reusable-workflows)
     - [Build Containers](#build-containers)
     - [Build Linux Packages](#build-linux-packages)
@@ -61,50 +65,106 @@ The CI/CD pipeline is designed to:
 
 ## Workflows
 
-### Build and Test
+### Filename Conventions
 
-**File:** [`.github/workflows/build.yaml`](./build.yaml)
+Workflow filenames use a prefix to indicate when they run:
+
+| Prefix | When it runs | Example |
+|---|---|---|
+| `pr-` | Pull requests only | `pr-build.yaml`, `pr-lint.yaml` |
+| `release-` | Version tag pushes (`v*`) only | `release-build.yaml` |
+| `lts-` | LTS branch maintenance | `lts-update-branches.yaml` |
+| `call-` | Reusable workflows (called by other workflows) | `call-build-containers.yaml` |
+| _(none)_ | General purpose / mixed triggers | `build.yaml`, `unit-tests.yaml` |
+
+The main CI/CD pipeline is split across three workflow files based on trigger context, so that each only runs what is necessary:
+
+| Workflow | File | Trigger |
+|---|---|---|
+| PR Build and Test | [`pr-build.yaml`](./pr-build.yaml) | Pull requests |
+| Branch Build and Test | [`build.yaml`](./build.yaml) | Push to `main`/`release/**`, manual dispatch |
+| Release | [`release-build.yaml`](./release-build.yaml) | Push of version tags (`v*`) |
+
+### PR Build and Test
+
+**File:** [`.github/workflows/pr-build.yaml`](./pr-build.yaml)
 
 **Triggers:**
 
 - Pull requests (opened, synchronize, reopened, labeled)
-- Push to `main` and `release/**` branches
-- Push of version tags (`v*`)
-- Manual workflow dispatch
 
-**Purpose:** Main CI/CD workflow that orchestrates building, testing, and releasing the Agent.
+**Purpose:** Builds and tests the minimum required for PR validation. Package builds are gated behind labels to reduce CI cost and speed up iteration.
 
 **Jobs:**
 
 1. **get-meta** - Extracts metadata including version, build type, and target platforms
 2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
-3. **build-linux** - Builds Linux packages (DEB, RPM) for various distributions
-4. **build-windows** - Builds Windows packages (EXE, MSI, ZIP)
-5. **build-macos** - Builds macOS packages (PKG) for Intel and Apple Silicon
-6. **copy-common-images** - Promotes release images to standard locations
-7. **test-containers** - Runs container tests including BATS and Kubernetes tests
-8. **test-packages** - Tests Linux packages on target distributions
-9. **tests-complete** - Aggregates test results
-10. **release** - Creates GitHub releases with artifacts and SBOMs
-11. **update-docs** - Updates documentation with new version mappings
-12. **update-homebrew** - Updates Homebrew formula for macOS
+3. **build-linux** - Builds Linux packages — only with `build-packages` or `build-linux` label
+4. **build-windows** - Builds Windows packages — only with `build-packages` or `build-windows` label
+5. **build-macos** - Builds macOS packages — only with `build-packages` or `build-macos` label
+6. **test-containers** - Runs container tests including BATS and Kubernetes tests
+7. **test-packages** - Tests Linux packages on target distributions (runs if build-linux ran)
+8. **tests-complete** - Aggregates test results (branch protection status check)
 
 **Key Features:**
 
-- Conditional execution based on PR labels (`build-packages`, `build-linux`, `build-windows`, `build-macos`, `build-self-hosted`)
-- Support for self-hosted runners
-- Multi-architecture builds (AMD64, ARM64)
-- Signed container images using Cosign
-- SBOM generation for containers
-- Automated release creation for version tags
+- Container images always built for every PR
+- Package builds opt-in via PR labels (`build-packages`, `build-linux`, `build-windows`, `build-macos`)
+- Self-hosted runners opt-in via `build-self-hosted` label
+- Uses the full PR linux target matrix from `build-config.json`
+- Concurrency group cancels previous runs on new commits
+
+### Branch Build and Test
+
+**File:** [`.github/workflows/build.yaml`](./build.yaml)
+
+**Triggers:**
+
+- Push to `main` and `release/**` branches
+- Manual workflow dispatch
+
+**Purpose:** Full build and staging upload on every commit to main or release branches. Signs packages and uploads artefacts to GCS staging bucket.
+
+**Jobs:**
+
+1. **get-meta** - Extracts metadata including version, build type, and target platforms
+2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
+3. **build-linux** - Builds Linux packages for all release targets
+4. **build-windows** - Builds Windows packages
+5. **test-containers** - Runs container tests including BATS and Kubernetes tests
+6. **test-packages** - Tests Linux packages on target distributions
+7. **tests-complete** - Aggregates test results
+8. **release** - Signs packages and uploads to GCS staging (no GitHub release created)
+
+### Release
+
+**File:** [`.github/workflows/release-build.yaml`](./release-build.yaml)
+
+**Triggers:**
+
+- Push of version tags (`v*`)
+
+**Purpose:** Full release build: creates a signed GitHub release with artefacts, SBOMs, container tarballs, and promotes images. Updates documentation.
+
+**Jobs:**
+
+1. **get-meta** - Extracts metadata including version, build type, and target platforms
+2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
+3. **build-linux** - Builds Linux packages for all release targets
+4. **build-windows** - Builds Windows packages
+5. **copy-common-images** - Promotes release images to standard locations
+6. **test-containers** - Runs container tests including BATS and Kubernetes tests
+7. **test-packages** - Tests Linux packages on target distributions
+8. **tests-complete** - Aggregates test results
+9. **release** - Creates GitHub release with signed artefacts, SBOMs, and uploads to GCS
+10. **update-docs** - Updates documentation with new version mappings
 
 **Outputs:**
 
 - Container images pushed to `ghcr.io/telemetryforge/agent`
 - Linux packages (DEB, RPM)
 - Windows packages (EXE, MSI, ZIP)
-- macOS packages (PKG)
-- GitHub releases with all artifacts
+- GitHub release with all artefacts and SBOMs
 
 ### Unit Tests
 
@@ -135,9 +195,9 @@ The CI/CD pipeline is designed to:
 - Coverage reports (HTML, XML, JSON)
 - Test results
 
-### Lint
+### Lint PRs
 
-**File:** [`.github/workflows/lint.yaml`](./lint.yaml)
+**File:** [`.github/workflows/pr-lint.yaml`](./pr-lint.yaml)
 
 **Triggers:**
 
@@ -161,9 +221,9 @@ The CI/CD pipeline is designed to:
 - Conventional commit enforcement for PR titles
 - Skips validation for Dependabot PRs
 
-### Lint Packages
+### Lint Package PRs
 
-**File:** [`.github/workflows/lint-packages.yaml`](./lint-packages.yaml)
+**File:** [`.github/workflows/pr-lint-packages.yaml`](./pr-lint-packages.yaml)
 
 **Triggers:**
 
@@ -239,9 +299,9 @@ The CI/CD pipeline is designed to:
 - LTS: `v25.10.x` (incremental patch version)
 - Mainline: `vYY.M.W` (year.month.week)
 
-### Update Version
+### Update Version on Release
 
-**File:** [`.github/workflows/update-version.yaml`](./update-version.yaml)
+**File:** [`.github/workflows/release-update-version.yaml`](./release-update-version.yaml)
 
 **Triggers:**
 
@@ -266,6 +326,27 @@ The CI/CD pipeline is designed to:
 
 - LTS tags (`v25.10.x`): Increments patch version
 - Mainline: Calculates next week's version (`vYY.M.W`)
+
+### LTS Branch Updates
+
+**File:** [`.github/workflows/lts-update-branches.yaml`](./lts-update-branches.yaml)
+
+**Triggers:**
+
+- Push to `main` (when `.github/**` files change)
+- Manual workflow dispatch
+
+**Purpose:** Automatically propagates `.github/` workflow and action changes from `main` into LTS release branches by opening a PR against each branch.
+
+**Jobs:**
+
+1. **lts-branch-updates** - Opens a PR against each LTS branch with changes from `main`
+
+**Key Features:**
+
+- Targets all active LTS branches (e.g. `release/25.10-lts`)
+- Dry-run support for testing
+- Auto-triggered on workflow file changes to keep CI consistent across branches
 
 ## Reusable Workflows
 

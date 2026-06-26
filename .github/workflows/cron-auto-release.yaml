@@ -97,7 +97,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.detect-branch.outputs.branch }}
-          WORKFLOW: "Build and test"
+          WORKFLOW: "Branch Build and Test"
           JOB: "All tests complete"
 
       - name: Debug

@@ -1,10 +1,8 @@
-name: Branch Build and Test
+name: Release
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-      - release/**
+    tags:
+      - v*
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
@@ -27,7 +25,7 @@ jobs:
     outputs:
       build-type: ${{ steps.set-build-type.outputs.build-type }}
       date: ${{ steps.set-meta.outputs.date }}
-      # For main/release branches use the main/release target set
+      # For releases use the main/release target set
       linux-targets: ${{ steps.set-meta.outputs.main-linux-targets }}
       version: ${{ steps.set-version.outputs.version }}
       oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
@@ -167,6 +165,23 @@ jobs:
       ref: ${{ github.ref }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
+  # We want to copy the UBI image to ghcr.io/telemetryforge/agent:version and
+  # the distroless image to ghcr.io/telemetryforge/agent:version-slim
+  copy-common-images:
+    name: Promote release images
+    needs:
+      - get-meta
+      - build-image
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/call-publish-release-images.yaml
+    with:
+      version: ${{ needs.build-image.outputs.version }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   test-containers:
     name: Test container images
     uses: ./.github/workflows/call-test-containers.yaml
@@ -240,8 +255,8 @@ jobs:
         run: echo "All tests complete"
         shell: bash
 
-  # Staging release: signs packages and uploads to GCS for every commit on main/release branches.
-  # The actual GitHub release is only created for version tags (handled by release-build.yaml).
+  # runs for every commit except only versioned releases are pushed. this allows dry running the job for every PR and
+  # allows dependent downstream jobs to dry run as well.
   release:
     name: Create release
     needs:
@@ -250,11 +265,16 @@ jobs:
       # We need packages to be built for a release
       - build-linux
       - build-windows
+      # Deliberately exclude the following for a release and also to dry run PRs
+      # - copy-common-images
+      # - tests-complete
     runs-on: ubuntu-latest
     permissions:
       packages: read
       actions: read
       contents: read
+      # We no longer need write permissions as we use a PAT due to https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+      # contents: write
       id-token: write
     env:
       UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
@@ -396,6 +416,62 @@ jobs:
         run: ls -lR
         shell: bash
 
+      - name: Check if commit is on default branch
+        id: check_branch
+        run: |
+          # Check if the current commit exists on the default branch
+          if git branch -r --contains ${{ github.sha }} | grep -q "origin/${{ github.event.repository.default_branch }}"; then
+            echo "is_default=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_default=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - id: get-secrets-release
+        name: Get secrets from GCP Secret Manager for release creation
+        # We need a custom PAT for creating a release on an older commit SHA
+        # https://github.com/softprops/action-gh-release/issues/411#issuecomment-4062182124
+        uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+        with:
+          secrets: |-
+            github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
+
+      - name: Create release
+        # This may fail for workflow_dispatch if the release already exists
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          append_body: true
+          token: ${{ steps.get-secrets-release.outputs.github-pat }}
+          body: |
+            Telemetry Forge Agent release for ${{ github.ref_name }} version
+
+            Version: ${{ needs.get-meta.outputs.version }}
+            OSS Version: ${{ needs.get-meta.outputs.oss-version }}
+
+            Targets:
+              - Windows: 2022/2025
+              - Linux: ${{ steps.linux-targets.outputs.linux-targets }}
+
+            Images:
+              - ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
+              - ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
+          files: |
+            install.sh
+            *.spdx
+            output/*.json
+            deliverables.tar.gz
+            output/telemetryforge-agent-container.tar.gz
+            output/package-macos-*
+            output/package-windows-*
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          # Ensure we create from the appropriate ref for non-latest builds
+          # Use the commit SHA to ensure we create from the exact commit the tag points to
+          target_commitish: ${{ github.sha }}
+          # Only make the latest release if the commit exists on the default branch
+          make_latest: ${{ steps.check_branch.outputs.is_default == 'true' }}
+
       - name: Upload packages to Google Cloud Storage
         id: upload-packages
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
@@ -403,3 +479,17 @@ jobs:
           path: output/
           # We still use the old buckets from before our rename
           destination: fluentdo-agent-${{ needs.get-meta.outputs.build-type }}/${{ needs.get-meta.outputs.version }}/
+
+  update-docs:
+    needs:
+      - get-meta
+      - release
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    name: Update documentation on release
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@694143c942c2481eb49ccbaa99f9b6c13d25d84e
+    with:
+      agent-version: ${{ needs.get-meta.outputs.version }}
+      oss-version: ${{ needs.get-meta.outputs.oss-version }}

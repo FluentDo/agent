@@ -1,0 +1,121 @@
+# Agent Instructions for CI/CD Workflows
+
+This file captures the rules, conventions, and important context for AI agents (and human contributors) working on the GitHub Actions workflows in this repository.
+
+## Workflow Filename Conventions
+
+Every workflow file must use the appropriate prefix based on when it runs:
+
+| Prefix | Rule | Examples |
+|---|---|---|
+| `pr-` | Workflow triggers **only on pull requests** (`pull_request` event) | `pr-build.yaml`, `pr-lint.yaml`, `pr-lint-packages.yaml`, `pr-dependency-review.yml` |
+| `release-` | Workflow triggers **only on version tag pushes** (`v*` tags) | `release-build.yaml`, `release-update-version.yaml` |
+| `lts-` | Workflow is specifically about **LTS branch maintenance** | `lts-update-branches.yaml` |
+| `call-` | **Reusable workflow** called by other workflows via `uses:` | `call-build-containers.yaml`, `call-test-packages.yaml` |
+| _(no prefix)_ | **General purpose** — mixed triggers (PR + branch + tag), scheduled, or manual | `build.yaml`, `unit-tests.yaml`, `cron-auto-release.yaml` |
+
+When adding a new workflow file:
+1. Determine what triggers it and apply the correct prefix.
+2. If a workflow changes triggers (e.g. gains a `push` trigger alongside `pull_request`), rename it to drop the `pr-` prefix.
+3. Always update `README.md` in this directory when adding, removing, or renaming a workflow.
+
+## Main CI/CD Workflows
+
+The main build pipeline is split into three files based on trigger context:
+
+| File | Trigger | Purpose |
+|---|---|---|
+| `pr-build.yaml` | `pull_request` | PR validation — containers always built; packages opt-in via labels |
+| `build.yaml` | `push` to `main`/`release/**`, `workflow_dispatch` | Full build + sign + GCS staging upload on every branch commit |
+| `release-build.yaml` | `push` tags `v*` | Full release — GitHub release, SBOMs, image promotion, docs update |
+
+### PR labels that control optional builds
+
+These labels on a PR enable additional jobs in `pr-build.yaml`:
+
+| Label | Effect |
+|---|---|
+| `build-linux` | Builds Linux packages |
+| `build-windows` | Builds Windows packages |
+| `build-macos` | Builds macOS packages |
+| `build-packages` | Builds all packages (linux + windows + macos) |
+| `build-self-hosted` | Uses self-hosted runners instead of Namespace runners |
+
+## Reusable Workflows (`call-` prefix)
+
+All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows.
+
+| File | Purpose |
+|---|---|
+| `call-build-containers.yaml` | Builds multi-arch container images and signs them |
+| `call-build-linux-packages.yaml` | Builds DEB/RPM packages for all Linux targets |
+| `call-build-windows-packages.yaml` | Builds Windows packages (EXE, MSI, ZIP) |
+| `call-build-macos-packages.yaml` | Builds macOS packages (PKG) |
+| `call-publish-release-images.yaml` | Promotes release images to standard registry locations |
+| `call-test-containers.yaml` | Runs BATS, Kubernetes, and Red Hat certification tests |
+| `call-test-containers-k8s.yaml` | Kubernetes-specific container tests |
+| `call-test-packages.yaml` | Tests Linux packages on target distributions |
+
+## Important Cross-Workflow Dependencies
+
+### Workflow name referenced by cron-auto-release
+
+`cron-auto-release.yaml` looks up the last successful run by **workflow name** to find a good commit to tag. It currently uses:
+
+```yaml
+WORKFLOW: "Branch Build and Test"
+```
+
+This matches the `name:` field in `build.yaml`. **If you rename the `build.yaml` workflow's `name:` field, you must also update `cron-auto-release.yaml`.**
+
+### `tests-complete` job
+
+The `tests-complete` job in `pr-build.yaml`, `build.yaml`, and `release-build.yaml` acts as a single branch-protection status check. Its job **name must remain `All tests complete`** (this is what branch protection rules reference). Do not rename it.
+
+### `pr-lint-packages.yaml` self-reference
+
+This workflow has a `paths` filter that includes its own filename:
+```yaml
+- .github/workflows/pr-lint-packages.yaml
+```
+If the file is renamed, this path must be updated.
+
+## Security Practices
+
+- All third-party actions must be pinned to a **full commit SHA** with a version comment, e.g.:
+  ```yaml
+  uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  ```
+- All workflows use `step-security/harden-runner` as the first step.
+- `permissions: read-all` is set at the workflow level; individual jobs add only the permissions they need.
+- Secrets are retrieved from GCP Secret Manager at runtime — do not hard-code secrets.
+- The `STEP_SECURITY_EGRESS_POLICY` environment variable controls network egress policy (default: `audit`).
+
+## Runner Labels
+
+| Label | Where used |
+|---|---|
+| `namespace-profile-ubuntu-latest` | Standard AMD64 Linux runner |
+| `namespace-profile-ubuntu-latest-4cpu-16gb` | Large AMD64 Linux runner (package builds) |
+| `self-ubuntu-latest` | Self-hosted AMD64 runner (opt-in via `build-self-hosted` label on PRs) |
+
+## Build Configuration
+
+`build-config.json` in the repository root controls build targets:
+
+- `.linux_targets` — full set of Linux targets used for PR builds
+- `.release.linux_targets` — reduced set used for main/release branch and tag builds
+
+## Version Scheme
+
+- **LTS releases**: `v25.10.x` (year.month.patch, e.g. `v25.10.3`)
+- **Mainline releases**: `vYY.M.W` (two-digit year.month.week, e.g. `v25.6.2`)
+
+## README Maintenance
+
+The `README.md` in this directory (`./README.md`) is the authoritative documentation for all workflows. **Always update it when:**
+
+- Adding, removing, or renaming a workflow file
+- Changing a workflow's triggers
+- Adding or removing jobs from a workflow
+- Changing the filename convention rules in this AGENTS.md file
