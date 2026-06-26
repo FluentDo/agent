@@ -69,6 +69,7 @@ jobs:
         uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
 
       - name: Set nightly build date
+        # May not be used for releases, but we still set it to a value for consistency
         id: set-date
         run: |
           echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT

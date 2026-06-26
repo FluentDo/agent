@@ -128,6 +128,7 @@ jobs:
                       if (arr.length === 1 && arr[0].toLowerCase() === 'all') {
                         // Special case: linux=all means use full targets from build-config.json
                         out.useFullLinuxTargets = true;
+                        out.linuxTargets = ['all'];
                       } else {
                         out.linuxTargets.push(...arr);
                       }
