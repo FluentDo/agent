@@ -129,15 +129,16 @@ If the file is renamed, this path must be updated.
 
 ## Runner Labels
 
-Runner labels are never hardcoded directly in workflow files. All `namespace-profile-*` runner references are read from workflow-level `env` variables, which themselves default via repository variables. This allows changing the runner pool for all workflows by setting a single repo variable, with no workflow file changes needed.
+Runner labels for reusable workflows are defined inside those reusable workflows using repository variables. Callers must not pass runner-label inputs.
 
 | Env var | Repo variable | Default value | Purpose |
 |---|---|---|---|
 | `LINUX_AMD_RUNNER` | `vars.LINUX_AMD_RUNNER` | `namespace-profile-ubuntu-latest` | Standard AMD64 Linux runner |
 | `LINUX_AMD_LARGE_RUNNER` | `vars.LINUX_AMD_LARGE_RUNNER` | `namespace-profile-ubuntu-latest-4cpu-16gb` | Large AMD64 Linux runner (package builds) |
 | `LINUX_ARM_RUNNER` | `vars.LINUX_ARM_RUNNER` | `namespace-profile-ubuntu-latest-arm` | ARM64 Linux runner (currently unused/commented out) |
+| `LINUX_S390X_RUNNER` | `vars.LINUX_S390X_RUNNER` | `ubuntu-24.04-s390x` | s390x Linux runner |
 
-These three env vars must be declared in the `env:` block of every workflow that uses Linux runners:
+These env vars should be declared in the reusable workflows that schedule Linux runners:
 
 ```yaml
 env:
@@ -149,15 +150,11 @@ env:
 Then reference them in jobs:
 ```yaml
 runs-on: ${{ env.LINUX_AMD_RUNNER }}
-# or in reusable workflow calls:
-with:
-  amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-  large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
 ```
 
 The `self-ubuntu-latest` label for self-hosted runners is always referenced as a literal string (it is not configurable via repo variables).
 
-**Note:** Reusable (`call-*`) workflows keep hardcoded defaults in their `inputs:` definitions as a last-resort fallback. These should match the values above.
+**Note:** Keep runner label selection local to reusable (`call-*`) workflows to avoid caller/reusable propagation issues.
 
 ## Build Configuration
 

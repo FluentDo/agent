@@ -17,21 +17,6 @@ on:
         required: false
         type: string
         default: "telemetryforge"
-      amd-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest"
-      arm-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest-arm"
-      s390x-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "ubuntu-24.04-s390x"
       nightly-build-info:
         description: Any special information to add to the nightly build information string.
         required: false
@@ -60,30 +45,35 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  # Canonical image base names for all jobs in this workflow.
-  UBI_IMAGE_BASE: ghcr.io/telemetryforge/agent/ubi
-  DEBIAN_IMAGE_BASE: ghcr.io/telemetryforge/agent/debian
 
 permissions:
   contents: read
 
 jobs:
+
+  # Required as reusable workflow calls cannot reference env variables from the calling workflow but can use outputs from dependent jobs. 
+  # Instead we use the call-get-metadata.yaml workflow to resolve the canonical image base names and then pass them to the single-arch build jobs.
+  resolve-image-bases:
+    name: Resolve image base names
+    permissions:
+      contents: read
+    uses: ./.github/workflows/call-get-metadata.yaml
+
   build-ubi-single-arch-container-images:
     strategy:
       fail-fast: false
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
+    needs:
+      - resolve-image-bases
     uses: ./.github/workflows/call-build-container-single-arch.yaml
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
-      image-base: ${{ env.UBI_IMAGE_BASE }}
+      image-base: ${{ needs.resolve-image-bases.outputs.ubi-image-base }}
       definition: Dockerfile.ubi
       dockerhub-username: ${{ inputs.dockerhub-username }}
       platform: ${{ matrix.platform }}
-      amd-runner-label: ${{ inputs.amd-runner-label }}
-      arm-runner-label: ${{ inputs.arm-runner-label }}
-      s390x-runner-label: ${{ inputs.s390x-runner-label }}
       nightly-build-info: ${{ inputs.nightly-build-info }}
     secrets:
       dockerhub-token: ${{ secrets.dockerhub-token }}
@@ -93,17 +83,16 @@ jobs:
       fail-fast: false
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
+    needs:
+      - resolve-image-bases
     uses: ./.github/workflows/call-build-container-single-arch.yaml
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
-      image-base: ${{ env.DEBIAN_IMAGE_BASE }}
+      image-base: ${{ needs.resolve-image-bases.outputs.debian-image-base }}
       definition: Dockerfile.debian
       dockerhub-username: ${{ inputs.dockerhub-username }}
       platform: ${{ matrix.platform }}
-      amd-runner-label: ${{ inputs.amd-runner-label }}
-      arm-runner-label: ${{ inputs.arm-runner-label }}
-      s390x-runner-label: ${{ inputs.s390x-runner-label }}
       nightly-build-info: ${{ inputs.nightly-build-info }}
     secrets:
       dockerhub-token: ${{ secrets.dockerhub-token }}
@@ -112,9 +101,10 @@ jobs:
   build-ubi-container-image-manifest-and-sign:
     needs:
       - build-ubi-single-arch-container-images
+      - resolve-image-bases
     uses: ./.github/workflows/call-build-container-manifest-and-sign.yaml
     with:
-      image-base: ${{ env.UBI_IMAGE_BASE }}
+      image-base: ${{ needs.resolve-image-bases.outputs.ubi-image-base }}
     secrets:
       cosign_private_key: ${{ secrets.cosign_private_key }}
       cosign_private_key_password: ${{ secrets.cosign_private_key_password }}
@@ -123,9 +113,10 @@ jobs:
   build-debian-container-image-manifest-and-sign:
     needs:
       - build-debian-single-arch-container-images
+      - resolve-image-bases
     uses: ./.github/workflows/call-build-container-manifest-and-sign.yaml
     with:
-      image-base: ${{ env.DEBIAN_IMAGE_BASE }}
+      image-base: ${{ needs.resolve-image-bases.outputs.debian-image-base }}
     secrets:
       cosign_private_key: ${{ secrets.cosign_private_key }}
       cosign_private_key_password: ${{ secrets.cosign_private_key_password }}

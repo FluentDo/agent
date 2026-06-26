@@ -31,21 +31,6 @@ on:
         description: The platform to build for (e.g. amd64, arm64, s390x).
         required: true
         type: string
-      amd-runner-label:
-        description: The label to use for AMD64 runner.
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest"
-      arm-runner-label:
-        description: The label to use for ARM64 runner.
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest-arm"
-      s390x-runner-label:
-        description: The label to use for s390x runner.
-        required: false
-        type: string
-        default: "ubuntu-24.04-s390x"
       nightly-build-info:
         description: Any special information to add to the nightly build information string.
         required: false
@@ -62,6 +47,9 @@ on:
 
 env:
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
+  LINUX_S390X_RUNNER: ${{ vars.LINUX_S390X_RUNNER || 'ubuntu-24.04-s390x' }}
 
 permissions:
   contents: read
@@ -72,7 +60,7 @@ jobs:
       contents: read
       packages: write
     name: ${{ inputs.platform }}/production container image build
-    runs-on: ${{ (contains(inputs.platform, 'arm') && inputs.arm-runner-label) || (contains(inputs.platform, 's390x') && inputs.s390x-runner-label) || inputs.amd-runner-label }}
+    runs-on: ${{ (contains(inputs.platform, 'arm') && env.LINUX_ARM_RUNNER) || (contains(inputs.platform, 's390x') && env.LINUX_S390X_RUNNER) || env.LINUX_AMD_RUNNER }}
     outputs:
       digest: ${{ steps.production.outputs.digest }}
     steps:

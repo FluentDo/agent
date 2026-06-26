@@ -20,11 +20,6 @@ on:
         required: false
         type: string
         default: "telemetryforge"
-      amd-runner-label:
-        description: The label to use for the runner.
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest"
     secrets:
       github-token:
         description: Token to use to pull packages from GitHub Packages.
@@ -38,6 +33,7 @@ env:
   FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
 
 permissions:
   contents: read
@@ -114,7 +110,7 @@ jobs:
     needs:
       - call-test-packages-get-meta
     # We only run tests on AMD runners here
-    runs-on: ${{ inputs.amd-runner-label }}
+    runs-on: ${{ env.LINUX_AMD_RUNNER }}
     timeout-minutes: 30
     permissions:
       contents: read

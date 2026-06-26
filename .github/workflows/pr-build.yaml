@@ -9,10 +9,6 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  # Runner labels - override via repo variables to switch runner pools without workflow changes
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
-  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
-  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
 
 # Default to least permissions and then we can add as needed for each job.
 # This is a secure by default approach and also makes it easier to reason
@@ -46,7 +42,6 @@ jobs:
       platforms: '["amd64"]'
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -64,11 +59,6 @@ jobs:
       target-matrix: ${{ needs.get-meta.outputs.linux-targets }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      # Request to build on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-      large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
-      # No self-hosted ARM runners yet so always use the standard ones
-      # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
 
@@ -84,7 +74,7 @@ jobs:
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
   build-macos:
-    # Only build macOS packages with the label to reduce unnecessary costs with macOS runners
+    # Only build macOS packages with the label to reduce unnecessary CI costs
     if: ${{ contains(github.event.pull_request.labels.*.name, 'build-packages') || contains(github.event.pull_request.labels.*.name, 'build-macos') }}
     uses: ./.github/workflows/call-build-macos-packages.yaml
     needs:
@@ -105,6 +95,7 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
     needs:
       - build-image
+      - get-meta
     permissions:
       packages: read
       contents: read
@@ -112,8 +103,8 @@ jobs:
       fail-fast: false
       matrix:
         image-base:
-          - "ghcr.io/telemetryforge/agent/ubi"
-          - "ghcr.io/telemetryforge/agent/debian"
+          - ${{ needs.get-meta.outputs.ubi-image-base }}
+          - ${{ needs.get-meta.outputs.debian-image-base }}
 
   test-packages:
     name: Test packages
@@ -126,8 +117,6 @@ jobs:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      # Request to run on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}

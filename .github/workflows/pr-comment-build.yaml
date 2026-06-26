@@ -29,8 +29,6 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
-  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
 
 jobs:
   pr-build-comment:
@@ -170,8 +168,6 @@ jobs:
       platforms: ${{ needs.pr-build-comment.outputs.container-platforms-json }}
       nightly-build-info: ${{ needs.get-metadata.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-      arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -223,7 +219,6 @@ jobs:
       version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}

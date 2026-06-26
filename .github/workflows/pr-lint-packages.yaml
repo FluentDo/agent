@@ -23,7 +23,6 @@ jobs:
       version: "99.9.9"
       ref: ${{ github.ref }}
       target-matrix: '["ubuntu/24.04"]'
-      amd-runner-label: ubuntu-latest
 
   lintian-pr:
     runs-on: ubuntu-latest

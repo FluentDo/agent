@@ -6,13 +6,6 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  # Runner labels - override via repo variables to switch runner pools without workflow changes
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
-  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
-  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
-  # Single definition of image names
-  UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
-  DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
 
 # Default to least permissions and then we can add as needed for each job.
 # This is a secure by default approach and also makes it easier to reason
@@ -44,7 +37,6 @@ jobs:
       ref: ${{ github.ref }}
       nightly-build-info: ""
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -60,10 +52,6 @@ jobs:
       target-matrix: ${{ needs.get-meta.outputs.linux-targets }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-      large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
-      # No self-hosted ARM runners yet so always use the standard ones
-      # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
 
@@ -87,8 +75,6 @@ jobs:
       ref: ${{ github.ref }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
-  # We want to copy the UBI image to ghcr.io/telemetryforge/agent:version and
-  # the distroless image to ghcr.io/telemetryforge/agent:version-slim
   copy-common-images:
     name: Promote release images
     needs:

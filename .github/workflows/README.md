@@ -460,9 +460,6 @@ get-metadata:
 - `version` - Version to build
 - `ref` - Git reference to checkout
 - `dockerhub-username` - Docker Hub username for pulls
-- `amd-runner-label` - Runner label for AMD64 builds
-- `arm-runner-label` - Runner label for ARM64 builds
-- `s390x-runner-label` - Runner label for s390x builds
 - `platforms` - JSON platform list (for example `['amd64']` in PR builds, full set elsewhere)
 - `nightly-build-info` - Nightly build metadata string
 
@@ -530,9 +527,6 @@ get-metadata:
 - `definition` - Dockerfile to use
 - `platform` - Target architecture (`amd64`, `arm64`, or `s390x`)
 - `dockerhub-username` - Docker Hub username for pulls
-- `amd-runner-label` - Runner label for AMD64
-- `arm-runner-label` - Runner label for ARM64
-- `s390x-runner-label` - Runner label for s390x
 - `nightly-build-info` - Nightly build metadata string
 
 **Secrets:**
@@ -560,9 +554,6 @@ get-metadata:
 - `ref` - Git reference to checkout
 - `nightly-build-info` - Nightly build information
 - `dockerhub-username` - Docker Hub username
-- `amd-runner-label` - Runner label for AMD64
-- `arm-runner-label` - Runner label for ARM64
-- `large-amd-runner-label` - Runner label for resource-intensive builds
 
 **Secrets:**
 
@@ -737,7 +728,6 @@ get-metadata:
 - `version` - Version to test
 - `ref` - Repository reference
 - `dockerhub-username` - Docker Hub username
-- `amd-runner-label` - Runner label
 
 **Secrets:**
 
@@ -1128,6 +1118,8 @@ Common environment variables used across workflows:
 
 ## Runner Labels
 
+Runner selection for reusable workflows is centralized inside the reusable workflow definitions via repository variables. Callers do not pass runner-label inputs.
+
 The workflows support different runner types:
 
 - `ubuntu-latest` - Standard GitHub-hosted runners
@@ -1138,6 +1130,13 @@ The workflows support different runner types:
 - `macos-15` - macOS Apple Silicon
 - `macos-15-intel` - macOS Intel
 - `windows-2025` - Windows Server 2025
+
+Reusable workflows derive Linux runner labels from these repository variables:
+
+- `vars.LINUX_AMD_RUNNER` (default: `namespace-profile-ubuntu-latest`)
+- `vars.LINUX_AMD_LARGE_RUNNER` (default: `namespace-profile-ubuntu-latest-4cpu-16gb`)
+- `vars.LINUX_ARM_RUNNER` (default: `namespace-profile-ubuntu-latest-arm`)
+- `vars.LINUX_S390X_RUNNER` (default: `ubuntu-24.04-s390x`)
 
 ## Secrets
 

@@ -10,8 +10,6 @@ on:
       github-token:
         required: true
 env:
-  UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
-  DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
 
@@ -19,13 +17,23 @@ permissions:
   contents: read
 
 jobs:
+  get-meta:
+    name: Resolve image base names
+    permissions:
+      contents: read
+    uses: ./.github/workflows/call-get-metadata.yaml
+
   promote-ghcr-images:
     name: Promote container images to top-level ghcr.io registries
     runs-on: ubuntu-latest
+    needs:
+      - get-meta
     permissions:
       contents: read
       packages: write
     env:
+      UBI_IMAGE_NAME: ${{ needs.get-meta.outputs.ubi-image-base }}
+      DISTROLESS_IMAGE_NAME: ${{ needs.get-meta.outputs.debian-image-base }}
       OUTPUT_IMAGE_NAME: ghcr.io/telemetryforge/agent
       TAG: ${{ inputs.version }}
     steps:

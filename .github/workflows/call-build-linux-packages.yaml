@@ -26,21 +26,6 @@ on:
         required: false
         type: string
         default: ""
-      amd-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest"
-      arm-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest-arm"
-      large-amd-runner-label:
-        description: The label to use for the runner (if not specified then the default ubuntu-latest or equivalent is used).
-        required: false
-        type: string
-        default: "namespace-profile-ubuntu-latest-4cpu-16gb"
     secrets:
       gpg_private_key:
         description: The optional GPG key to use for signing the packages.
@@ -55,6 +40,9 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
+  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
 
 permissions:
   contents: read
@@ -62,7 +50,7 @@ permissions:
 jobs:
   build-packages:
     name: agent - ${{ matrix.distro }} package build and upload
-    runs-on: ${{ (contains(matrix.distro, 'arm') && inputs.arm-runner-label) || (contains(matrix.distro, 'centos/6') && inputs.large-amd-runner-label) || inputs.amd-runner-label }}
+    runs-on: ${{ (contains(matrix.distro, 'arm') && env.LINUX_ARM_RUNNER) || (contains(matrix.distro, 'centos/6') && env.LINUX_AMD_LARGE_RUNNER) || env.LINUX_AMD_RUNNER }}
     timeout-minutes: 60
     permissions:
       contents: read
