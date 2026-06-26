@@ -107,6 +107,8 @@ jobs:
       # contents: write
       id-token: write
     env:
+      UBI_IMAGE_NAME: ${{ needs.build-image.outputs.ubi-image-name }}
+      DISTROLESS_IMAGE_NAME: ${{ needs.build-image.outputs.debian-image-name }}
       TAG: ${{ needs.build-image.outputs.version }}
     steps:
       - name: Harden the runner
