@@ -35,10 +35,10 @@ on:
         value: ${{ jobs.get-metadata.outputs.oss-version }}
       ubi-image-base:
         description: The canonical base name for UBI container images.
-        value: ${{ jobs.get-metadata.outputs.ubi-image-base }}
+        value: ${{ jobs.get-image-bases.outputs.ubi-image-base }}
       debian-image-base:
         description: The canonical base name for Debian container images.
-        value: ${{ jobs.get-metadata.outputs.debian-image-base }}
+        value: ${{ jobs.get-image-bases.outputs.debian-image-base }}
 
 env:
   # Set once from repo variable or override here for testing
@@ -48,6 +48,11 @@ permissions:
   contents: read
 
 jobs:
+  get-image-bases:
+    name: Get image base names
+    uses: ./.github/workflows/call-get-image-base-names.yaml
+    permissions:
+      contents: read
   get-metadata:
     name: Get metadata
     runs-on: ubuntu-latest
@@ -59,8 +64,6 @@ jobs:
       linux-targets: ${{ steps.set-linux-targets.outputs.linux-targets }}
       version: ${{ steps.set-version.outputs.version }}
       oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
-      ubi-image-base: ${{ steps.set-image-bases.outputs.ubi-image-base }}
-      debian-image-base: ${{ steps.set-image-bases.outputs.debian-image-base }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -167,15 +170,4 @@ jobs:
           OSS_VERSION=$(cat source/oss_version.txt)
           echo "oss-version=$OSS_VERSION"
           echo "oss-version=$OSS_VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Set image bases
-        id: set-image-bases
-        run: |
-          UBI_IMAGE_BASE="ghcr.io/telemetryforge/agent/ubi"
-          DEBIAN_IMAGE_BASE="ghcr.io/telemetryforge/agent/debian"
-          echo "ubi-image-base=$UBI_IMAGE_BASE"
-          echo "debian-image-base=$DEBIAN_IMAGE_BASE"
-          echo "ubi-image-base=$UBI_IMAGE_BASE" >> $GITHUB_OUTPUT
-          echo "debian-image-base=$DEBIAN_IMAGE_BASE" >> $GITHUB_OUTPUT
         shell: bash

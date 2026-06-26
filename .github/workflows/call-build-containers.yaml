@@ -53,12 +53,12 @@ permissions:
 
 jobs:
   # Required as reusable workflow calls cannot reference env variables from the calling workflow but can use outputs from dependent jobs.
-  # Instead we use the call-get-metadata.yaml workflow to resolve the canonical image base names and then pass them to the single-arch build jobs.
+  # We use a dedicated job to resolve the image base names so that they can be used in the subsequent jobs and so we have a single source of truth.
   resolve-image-bases:
     name: Resolve image base names
     permissions:
       contents: read
-    uses: ./.github/workflows/call-get-metadata.yaml
+    uses: ./.github/workflows/call-get-image-base-names.yaml
 
   build-ubi-single-arch-container-images:
     strategy:

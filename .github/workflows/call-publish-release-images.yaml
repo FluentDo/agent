@@ -17,23 +17,23 @@ permissions:
   contents: read
 
 jobs:
-  get-meta:
+  get-image-bases:
     name: Resolve image base names
     permissions:
       contents: read
-    uses: ./.github/workflows/call-get-metadata.yaml
+    uses: ./.github/workflows/call-get-image-base-names.yaml
 
   promote-ghcr-images:
     name: Promote container images to top-level ghcr.io registries
     runs-on: ubuntu-latest
     needs:
-      - get-meta
+      - get-image-bases
     permissions:
       contents: read
       packages: write
     env:
-      UBI_IMAGE_NAME: ${{ needs.get-meta.outputs.ubi-image-base }}
-      DISTROLESS_IMAGE_NAME: ${{ needs.get-meta.outputs.debian-image-base }}
+      UBI_IMAGE_NAME: ${{ needs.get-image-bases.outputs.ubi-image-base }}
+      DISTROLESS_IMAGE_NAME: ${{ needs.get-image-bases.outputs.debian-image-base }}
       OUTPUT_IMAGE_NAME: ghcr.io/telemetryforge/agent
       TAG: ${{ inputs.version }}
     steps:
