@@ -32,9 +32,10 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - name: "macOS Intel silicon"
-            runner: macos-15-intel
-            package: "intel"
+          # Disabled for now as no users and costs a lot to build
+          # - name: "macOS Intel silicon"
+          #   runner: macos-15-intel
+          #   package: "intel"
           - name: "macOS Apple silicon"
             runner: macos-15
             package: "apple"

@@ -66,8 +66,6 @@ jobs:
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
   build-macos:
-    # Disabled for now for cost reasons, but can be re-enabled if we need to build for macOS
-    if: false
     uses: ./.github/workflows/call-build-macos-packages.yaml
     needs:
       - get-meta
