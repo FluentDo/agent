@@ -20,6 +20,8 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
 
 jobs:
   pr-build-comment:
@@ -176,6 +178,21 @@ jobs:
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
       target-matrix: ${{ needs.pr-build-comment.outputs.linux-targets-json }}
 
+  test-packages:
+    name: Test packages
+    needs:
+      - pr-build-linux
+    uses: ./.github/workflows/call-test-packages.yaml
+    with:
+      build-matrix: ${{ needs.pr-build-comment.outputs.linux-targets-json }}
+      version: ${{ needs.pr-build-get-metadata.outputs.version }}
+      ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
+      dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
+    secrets:
+      dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   pr-build-comment-response:
     name: Respond to PR comment
     if: always()
@@ -184,6 +201,7 @@ jobs:
       - pr-build-windows
       - pr-build-macos
       - pr-build-linux
+      - test-packages
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner
@@ -203,6 +221,7 @@ jobs:
           WINDOWS_RESULT: ${{ needs.pr-build-windows.result }}
           MACOS_RESULT: ${{ needs.pr-build-macos.result }}
           LINUX_RESULT: ${{ needs.pr-build-linux.result }}
+          TEST_PACKAGES_RESULT: ${{ needs.test-packages.result }}
         with:
           script: |
             const {owner, repo} = context.repo;
@@ -240,6 +259,7 @@ jobs:
                 windows: process.env.WINDOWS_RESULT || 'skipped',
                 macos: process.env.MACOS_RESULT || 'skipped',
                 linux: process.env.LINUX_RESULT || 'skipped',
+                testPackages: process.env.TEST_PACKAGES_RESULT || 'skipped',
             };
 
             const linuxTargets = (() => {
@@ -263,6 +283,10 @@ jobs:
                 const url = byName[name] || `${context.serverUrl}/${owner}/${repo}/actions/runs/${run_id}`;
                 const targetsStr = linuxTargets.length ? '`' + linuxTargets.join('`, `') + '`' : '_none_';
                 rows.push(`- Linux: ${statusEmoji(results.linux)} (${results.linux}) — Targets: ${targetsStr} — [Job logs](${url})`);
+                
+                const testName = 'Test packages';
+                const testUrl = byName[testName] || `${context.serverUrl}/${owner}/${repo}/actions/runs/${run_id}`;
+                rows.push(`- Tests: ${statusEmoji(results.testPackages)} (${results.testPackages}) — [Job logs](${testUrl})`);
             }
 
             const body = [

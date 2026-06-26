@@ -164,3 +164,11 @@ The `README.md` in this directory (`./README.md`) is the authoritative documenta
 - Changing a workflow's triggers
 - Adding or removing jobs from a workflow
 - Changing the filename convention rules in this AGENTS.md file
+
+## Agent Workflow Guidelines
+
+When making changes to workflows or workflow-related files:
+
+- **Never commit changes automatically.** Modify files only and let the user decide when to commit. This ensures the user maintains full control over their repository state and commit history.
+- Always update `README.md` when making changes to workflows (per the README Maintenance section above).
+- Test workflow changes before committing to ensure they don't introduce breaking changes.
