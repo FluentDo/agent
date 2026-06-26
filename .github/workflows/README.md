@@ -12,17 +12,21 @@ This directory contains the GitHub Actions workflows and reusable actions for th
   - [Workflows](#workflows)
     - [Filename Conventions](#filename-conventions)
     - [PR Build and Test](#pr-build-and-test)
+    - [PR Comment Build](#pr-comment-build)
     - [Branch Build and Test](#branch-build-and-test)
     - [Release](#release)
     - [Unit Tests](#unit-tests)
     - [Lint PRs](#lint-prs)
     - [Lint Package PRs](#lint-package-prs)
-    - [Test Specific Versions](#test-specific-versions)
+    - [Dependency Review](#dependency-review)
+    - [Scorecard Security](#scorecard-security)
     - [Auto Release](#auto-release)
     - [Update Version on Release](#update-version-on-release)
     - [LTS Branch Updates](#lts-branch-updates)
   - [Reusable Workflows](#reusable-workflows)
+    - [Get Build Metadata](#get-build-metadata)
     - [Build Containers](#build-containers)
+    - [Build Single Architecture Container](#build-single-architecture-container)
     - [Build Linux Packages](#build-linux-packages)
     - [Build Windows Packages](#build-windows-packages)
     - [Build macOS Packages](#build-macos-packages)
@@ -99,7 +103,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 **Jobs:**
 
 1. **get-meta** - Extracts metadata including version, build type, and target platforms
-2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
+2. **build-image** - Builds container images (UBI and Debian-based) for AMD64 PR validation
 3. **build-linux** - Builds Linux packages — only with `build-packages` or `build-linux` label
 4. **build-windows** - Builds Windows packages — only with `build-packages` or `build-windows` label
 5. **build-macos** - Builds macOS packages — only with `build-packages` or `build-macos` label
@@ -109,11 +113,40 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Key Features:**
 
-- Container images always built for every PR
+- Container images always built for every PR (AMD64 only, UBI and Debian variants)
 - Package builds opt-in via PR labels (`build-packages`, `build-linux`, `build-windows`, `build-macos`)
-- Self-hosted runners opt-in via `build-self-hosted` label
 - Uses the full PR linux target matrix from `build-config.json`
 - Concurrency group cancels previous runs on new commits
+
+### PR Comment Build
+
+**File:** [`.github/workflows/pr-comment-build.yaml`](./pr-comment-build.yaml)
+
+**Triggers:**
+
+- Issue comments on pull requests
+
+**Purpose:** Allows maintainers to trigger targeted builds from a PR comment using `/build` directives without waiting for full CI.
+
+**Jobs:**
+
+1. **pr-build-comment** - Parses `/build` comment directives and computes requested build matrixes
+2. **get-metadata** - Extracts metadata (version, date, linux targets) for the PR merge ref
+3. **pr-build-containers** - Builds requested container architectures (`amd64`, `arm64`, `s390x`, or `all`)
+4. **pr-build-windows** - Builds Windows packages when requested
+5. **pr-build-macos** - Builds macOS packages when requested
+6. **pr-build-linux** - Builds Linux packages for requested distro targets (or full target set with `linux=all`)
+7. **test-packages** - Runs Linux package tests for the selected Linux build matrix
+8. **pr-build-comment-response** - Posts a summary comment with per-job status and links
+
+**Comment Syntax Examples:**
+
+- `/build container=arm64`
+- `/build container=arm64,s390x`
+- `/build container=all`
+- `/build linux=ubuntu/24.04,centos/9`
+- `/build linux=all`
+- `/build container=amd64 linux=all windows`
 
 ### Branch Build and Test
 
@@ -132,9 +165,11 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
 3. **build-linux** - Builds Linux packages for all release targets
 4. **build-windows** - Builds Windows packages
-5. **test-containers** - Runs container tests including BATS and Kubernetes tests
-6. **test-packages** - Tests Linux packages on target distributions
-7. **staging-upload** - Signs packages (via `sign-packages` action) and uploads to GCS staging
+5. **build-macos** - Builds macOS packages (currently disabled with `if: false`)
+6. **test-containers** - Runs container tests including BATS and Kubernetes tests
+7. **test-packages** - Tests Linux packages on target distributions
+8. **staging-upload** - Signs packages (via `sign-packages` action) and uploads to GCS staging
+9. **tests-complete** - Aggregates test results (required by auto-release workflow)
 
 ### Release
 
@@ -152,12 +187,10 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
 3. **build-linux** - Builds Linux packages for all release targets
 4. **build-windows** - Builds Windows packages
-5. **copy-common-images** - Promotes release images to standard locations
-6. **test-containers** - Runs container tests including BATS and Kubernetes tests
-7. **test-packages** - Tests Linux packages on target distributions
-8. **tests-complete** - Aggregates test results
-9. **release** - Creates GitHub release with signed artefacts, SBOMs, and uploads to GCS
-10. **update-docs** - Updates documentation with new version mappings
+5. **build-macos** - Builds macOS packages (currently disabled with `if: false`)
+6. **copy-common-images** - Promotes release images to standard locations
+7. **release** - Creates GitHub release with signed artefacts, SBOMs, and uploads to GCS
+8. **update-docs** - Updates documentation with new version mappings
 
 **Outputs:**
 
@@ -172,8 +205,8 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Triggers:**
 
-- Pull requests to `main` and `release/**` branches (when source code changes)
-- Manual workflow dispatch
+- Push to `main` and `release/**`
+- Pull requests to `main` and `release/**` when `source/**` or the unit test workflow file changes
 
 **Purpose:** Runs comprehensive unit tests with sanitizers and generates code coverage reports.
 
@@ -183,7 +216,8 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Key Features:**
 
-- Multiple sanitizer configurations (address, undefined, memory, thread)
+- Default unit-test configurations: address sanitizer + undefined sanitizer, and coverage
+- Optional sanitizer configurations (memory, thread) are present in the workflow and can be re-enabled
 - Code coverage reporting using gcovr
 - Coverage reports in multiple formats (HTML, XML, JSON)
 - Runs on Namespace profile runners (4 vCPU, 8GB RAM)
@@ -211,7 +245,10 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 1. **hadolint-pr** - Lints Dockerfiles using Hadolint
 2. **shellcheck-pr** - Lints shell scripts using Shellcheck
 3. **actionlint-pr** - Lints GitHub Actions workflows using Actionlint
-4. **prchecker-lint** - Validates PR title format (conventional commits)
+4. **workflow-file-format-pr** - Verifies workflow files are formatted
+5. **prchecker-lint** - Validates PR title format (conventional commits)
+6. **actions-pin-sha** - Checks workflow action pinning to SHAs
+7. **zizmor-lint** - Runs zizmor security linting for workflows
 
 **Key Features:**
 
@@ -244,15 +281,45 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 - Lists package contents and control files
 - Validates package dependencies
 
+### Dependency Review
+
+**File:** [`.github/workflows/pr-dependency-review.yml`](./pr-dependency-review.yml)
+
+**Triggers:**
+
+- Pull requests
+
+**Purpose:** Blocks pull requests that introduce high-severity vulnerable dependencies.
+
+**Jobs:**
+
+1. **dependency-review** - Runs GitHub dependency review with PR summary comments
+
+### Scorecard Security
+
+**File:** [`.github/workflows/scorecards.yml`](./scorecards.yml)
+
+**Triggers:**
+
+- Push to `main`
+- Weekly schedule (Tuesday 07:30 UTC)
+- Branch protection rule events
+
+**Purpose:** Runs OpenSSF Scorecard analysis and uploads SARIF results to GitHub code scanning.
+
+**Jobs:**
+
+1. **analysis** - Executes Scorecard checks, uploads SARIF artifact, and publishes code scanning results
+
 ### Auto Release
 
 **File:** [`.github/workflows/cron-auto-release.yaml`](./cron-auto-release.yaml)
 
 **Triggers:**
 
-- Schedule: Mondays at 10:00 UTC (25.10 LTS releases)
-- Schedule: Mondays at 14:00 UTC (26.4 LTS releases)
-- Schedule: Tuesdays at 10:00 UTC (latest releases)
+- Schedule: 1st day of month at 14:00 UTC (25.10 LTS releases)
+- Schedule: 15th day of month at 14:00 UTC (26.4 LTS releases)
+- Schedule: Mondays at 10:00 UTC (latest releases)
 - Manual workflow dispatch
 
 **Purpose:** Automatically creates release tags based on the last successful build.
@@ -273,7 +340,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Tag Formats:**
 
-- LTS: `v25.10.x` (incremental patch version)
+- LTS: `v25.10.x` or `v26.4.x` (incremental patch version)
 - Mainline: `vYY.M.W` (year.month.week)
 
 ### Update Version on Release
@@ -392,11 +459,12 @@ get-metadata:
 
 - `version` - Version to build
 - `ref` - Git reference to checkout
-- `image-base` - Base image name
-- `definition` - Dockerfile to use
 - `dockerhub-username` - Docker Hub username for pulls
 - `amd-runner-label` - Runner label for AMD64 builds
 - `arm-runner-label` - Runner label for ARM64 builds
+- `s390x-runner-label` - Runner label for s390x builds
+- `platforms` - JSON platform list (for example `['amd64']` in PR builds, full set elsewhere)
+- `nightly-build-info` - Nightly build metadata string
 
 **Secrets:**
 
@@ -406,23 +474,53 @@ get-metadata:
 
 **Jobs:**
 
-1. **build-single-arch-container-images** - Builds images for each architecture/target
-2. **build-container-image-manifest** - Creates multi-arch manifests
-3. **build-container-images-sign** - Signs images with Cosign
+1. **build-single-arch-container-images** - Matrix-calls single-arch builds across image variants and selected platforms
+2. **build-container-image-manifest** - Creates per-image multi-arch manifests
+3. **build-container-images-sign** - Signs each image manifest with Cosign
 
 **Outputs:**
 
 - `tag` - Full image name and tag
-- `image` - Image name
 - `version` - Container version
 
 **Key Features:**
 
-- Multi-architecture support (AMD64, ARM64)
-- Multiple targets (production, test)
+- Multi-architecture support (AMD64, ARM64, s390x)
+- Internal image matrix for UBI and Debian variants
 - Image signing with Cosign (key-based and OIDC)
 - Digest-based manifest creation
 - Test image for BATS tests (AMD64 only)
+
+### Build Single Architecture Container
+
+**File:** [`.github/workflows/call-build-container-single-arch.yaml`](./call-build-container-single-arch.yaml)
+
+**Purpose:** Reusable per-platform container build used by `call-build-containers.yaml`.
+
+**Inputs:**
+
+- `version` - Version to build
+- `ref` - Git reference to checkout
+- `image-base` - Target base image name
+- `definition` - Dockerfile to use
+- `platform` - Target architecture (`amd64`, `arm64`, or `s390x`)
+- `dockerhub-username` - Docker Hub username for pulls
+- `amd-runner-label` - Runner label for AMD64
+- `arm-runner-label` - Runner label for ARM64
+- `s390x-runner-label` - Runner label for s390x
+- `nightly-build-info` - Nightly build metadata string
+
+**Secrets:**
+
+- `dockerhub-token` - Docker Hub token
+
+**Jobs:**
+
+1. **build-single-arch** - Builds and pushes production image digest; builds test image for AMD64
+
+**Outputs:**
+
+- `digest` - Production image digest
 
 ### Build Linux Packages
 
@@ -789,7 +887,7 @@ sequenceDiagram
     participant Sign as sign-images
     participant Registry as GHCR
 
-    Caller->>Build: Start build (AMD64, ARM64)
+    Caller->>Build: Start build (selected platforms)
     
     par AMD64 Build
         Build->>Build: Build production image
@@ -800,6 +898,10 @@ sequenceDiagram
         Build->>Build: Build production image
         Build->>Build: Export digest
         Build->>Registry: Push by digest
+    and s390x Build
+      Build->>Build: Build production image
+      Build->>Build: Export digest
+      Build->>Registry: Push by digest
     end
     
     Build->>Manifest: Upload digests
@@ -1101,5 +1203,5 @@ When adding new workflows:
 For issues or questions:
 
 - GitHub Issues: <https://github.com/telemetryforge/agent/issues>
-- Documentation: <https://telemetryforge.io>
+- Documentation: <https://docs.telemetryforge.io>
 - Email: <info@telemetryforge.io>
