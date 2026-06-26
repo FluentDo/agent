@@ -64,10 +64,11 @@ Each workflow should only contain steps that are relevant for its specific trigg
 
 Do not add conditions like `if: github.ref_type == 'tag'` or `if: github.event_name != 'pull_request'` inside a workflow to gate steps — instead, put those steps in the correct workflow file.
 
-All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows.
+All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows. The `call-get-metadata.yaml` workflow is always the first job in `pr-build.yaml`, `build.yaml`, and `release-build.yaml` — it outputs version, date, linux targets, and OSS version that downstream jobs depend on.
 
 | File | Purpose |
 |---|---|
+| `call-get-metadata.yaml` | Extracts build metadata (version, date, linux targets, OSS version) — handles differences between PR, staging, and release builds using boolean inputs |
 | `call-build-containers.yaml` | Builds multi-arch container images and signs them |
 | `call-build-linux-packages.yaml` | Builds DEB/RPM packages for all Linux targets |
 | `call-build-windows-packages.yaml` | Builds Windows packages (EXE, MSI, ZIP) |
@@ -76,6 +77,19 @@ All reusable workflows are in files prefixed `call-`. They are invoked via `uses
 | `call-test-containers.yaml` | Runs BATS, Kubernetes, and Red Hat certification tests |
 | `call-test-containers-k8s.yaml` | Kubernetes-specific container tests |
 | `call-test-packages.yaml` | Tests Linux packages on target distributions |
+
+### Metadata Workflow Configuration
+
+The `call-get-metadata.yaml` workflow accepts three inputs to control behavior:
+
+- **`ref`** — Git reference (branch, tag, or commit SHA) to checkout. Defaults to `main`. Pass `${{ github.ref }}` for the current workflow's reference.
+- **`get-version-from-tag`** — Boolean. If `true`, extracts version by stripping the `v` prefix from the git tag name (for releases). If `false`, reads version from `Dockerfile.ubi` (for PRs and staging). Default: `false`.
+- **`use-full-linux-targets`** — Boolean. If `true`, uses `.linux_targets` from build-config.json (full set for PR builds). If `false`, uses `.release.linux_targets` (reduced set for staging/release builds). Default: `true`.
+
+**Example configurations:**
+- **PR builds**: `get-version-from-tag: false`, `use-full-linux-targets: true`
+- **Staging builds**: `get-version-from-tag: false`, `use-full-linux-targets: false`
+- **Release builds**: `get-version-from-tag: true`, `use-full-linux-targets: false`
 
 ## Important Cross-Workflow Dependencies
 

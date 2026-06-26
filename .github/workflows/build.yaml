@@ -24,70 +24,11 @@ concurrency:
 jobs:
   get-meta:
     name: Get meta information required for the build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      date: ${{ steps.set-date.outputs.date }}
-      linux-targets: ${{ steps.set-meta.outputs.main-linux-targets }}
-      version: ${{ steps.set-version.outputs.version }}
-      oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
-
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Debug
-        uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
-
-      - name: Get current date for nightly build info
-        id: set-date
-        run: |
-          echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Get the versions to use
-        # Look for the default line in the Dockerfile
-        id: set-version
-        run: |
-          # Support LTS version for backwards compatibility, but default to the new version variable
-          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
-              echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
-              VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          else
-              echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
-              VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          fi
-
-          echo "Using version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Extract the configuration from the JSON file
-        # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
-        id: set-meta
-        run: |
-          MAIN_LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS"
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          JSON_FILE_NAME: build-config.json
-
-      - name: Get the OSS version
-        # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
-        id: set-oss-version
-        run: |
-          OSS_VERSION=$(cat source/oss_version.txt)
-          echo "oss-version=$OSS_VERSION"
-          echo "oss-version=$OSS_VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
+    uses: ./.github/workflows/call-get-metadata.yaml
+    with:
+      get-version-from-tag: false
+      use-full-linux-targets: false
+      ref: ${{ github.ref }}
   build-image:
     uses: ./.github/workflows/call-build-containers.yaml
     needs:

@@ -22,61 +22,11 @@ concurrency:
 jobs:
   get-meta:
     name: Get meta information required for the build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      # Disable nightly build info for releases as we want to use the version number for the build and not a timestamp
-      date: ''
-      # For releases use the main/release target set
-      linux-targets: ${{ steps.set-meta.outputs.linux-targets }}
-      version: ${{ steps.set-version.outputs.version }}
-      oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
-
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Debug
-        uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
-
-      - name: Get the versions to use
-        # Look for the default line in the Dockerfile
-        id: set-version
-        run: |
-          # For releases we use the tag
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "Found tag: $TAG_NAME"
-          # Strip first character
-          VERSION=${TAG_NAME:1}
-          echo "Using version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Extract the configuration from the JSON file
-        # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
-        id: set-meta
-        run: |
-          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          echo "linux-targets=$LINUX_TARGETS"
-          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          JSON_FILE_NAME: build-config.json
-
-      - name: Get the OSS version
-        # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
-        id: set-oss-version
-        run: |
-          OSS_VERSION=$(cat source/oss_version.txt)
-          echo "oss-version=$OSS_VERSION"
-          echo "oss-version=$OSS_VERSION" >> $GITHUB_OUTPUT
-        shell: bash
+    uses: ./.github/workflows/call-get-metadata.yaml
+    with:
+      get-version-from-tag: true
+      use-full-linux-targets: false
+      ref: ${{ github.ref }}
 
   build-image:
     uses: ./.github/workflows/call-build-containers.yaml
@@ -101,7 +51,8 @@ jobs:
       # Pick the Dockerfile to use for each image
       definition: ${{ (contains(matrix.image-base, 'debian') && 'Dockerfile.debian') || 'Dockerfile.ubi' }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      nightly-build-info: ${{ needs.get-meta.outputs.date }}
+      # Disable nightly build info for releases
+      nightly-build-info: ''
       amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
       # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}

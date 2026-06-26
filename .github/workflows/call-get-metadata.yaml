@@ -1,0 +1,159 @@
+---
+name: Get build metadata
+# This reusable workflow extracts build metadata (version, date, linux targets, OSS version)
+# from the repository. It handles differences between PR builds, staging builds, and releases.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit, SHA or branch to use in this repository.
+        required: false
+        type: string
+        default: main
+      get-version-from-tag:
+        description: If true, extract version from git tag (for releases); if false, from Dockerfile (for PRs/staging).
+        required: false
+        type: boolean
+        default: false
+      use-full-linux-targets:
+        description: If true, use .linux_targets from build-config.json (for PR builds); if false, use .release.linux_targets (for staging/releases).
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      date:
+        description: Nightly build date/timestamp, or empty string for releases.
+        value: ${{ jobs.get-metadata.outputs.date }}
+      linux-targets:
+        description: JSON array of Linux build targets (full set for PRs, reduced set for staging/releases).
+        value: ${{ jobs.get-metadata.outputs.linux-targets }}
+      version:
+        description: The build version (from Dockerfile or git tag).
+        value: ${{ jobs.get-metadata.outputs.version }}
+      oss-version:
+        description: The OSS (Fluent Bit) version from source/oss_version.txt.
+        value: ${{ jobs.get-metadata.outputs.oss-version }}
+
+env:
+  # Set once from repo variable or override here for testing
+  STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+
+permissions:
+  contents: read
+
+jobs:
+  get-metadata:
+    name: Get metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      date: ${{ steps.set-date.outputs.date }}
+      linux-targets: ${{ steps.set-linux-targets.outputs.linux-targets }}
+      version: ${{ steps.set-version.outputs.version }}
+      oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: telemetryforge/agent
+          ref: ${{ inputs.ref }}
+
+      - name: Debug
+        uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
+
+      - name: Set nightly build date
+        id: set-date
+        run: |
+          echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get the version from git tag
+        if: inputs.get-version-from-tag
+        id: set-version-from-tag
+        run: |
+          # For releases we use the tag
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Found tag: $TAG_NAME"
+          # Strip first character (the 'v')
+          VERSION=${TAG_NAME:1}
+          echo "Using version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get the version from Dockerfile
+        if: ${{ !inputs.get-version-from-tag }}
+        id: set-version-from-dockerfile
+        run: |
+          # Support LTS version for backwards compatibility, but default to the new version variable
+          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
+            echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
+            VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+          else
+            echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
+            VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+          fi
+
+          echo "Using version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Determine version output
+        id: set-version
+        run: |
+          if [[ "${{ inputs.get-version-from-tag }}" == "true" ]]; then
+            VERSION="${{ steps.set-version-from-tag.outputs.version }}"
+          else
+            VERSION="${{ steps.set-version-from-dockerfile.outputs.version }}"
+          fi
+          echo "version=$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Extract full Linux targets from build config
+        if: inputs.use-full-linux-targets
+        id: set-linux-targets-full
+        run: |
+          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
+          echo "linux-targets=$LINUX_TARGETS"
+          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
+        shell: bash
+        env:
+          JSON_FILE_NAME: build-config.json
+
+      - name: Extract release Linux targets from build config
+        if: ${{ !inputs.use-full-linux-targets }}
+        id: set-linux-targets-release
+        run: |
+          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
+          echo "linux-targets=$LINUX_TARGETS"
+          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
+        shell: bash
+        env:
+          JSON_FILE_NAME: build-config.json
+
+      - name: Determine Linux targets output
+        id: set-linux-targets
+        run: |
+          if [[ "${{ inputs.use-full-linux-targets }}" == "true" ]]; then
+            TARGETS="${{ steps.set-linux-targets-full.outputs.linux-targets }}"
+          else
+            TARGETS="${{ steps.set-linux-targets-release.outputs.linux-targets }}"
+          fi
+          echo "linux-targets=$TARGETS"
+          echo "linux-targets=$TARGETS" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get the OSS version
+        id: set-oss-version
+        run: |
+          OSS_VERSION=$(cat source/oss_version.txt)
+          echo "oss-version=$OSS_VERSION"
+          echo "oss-version=$OSS_VERSION" >> $GITHUB_OUTPUT
+        shell: bash

@@ -350,6 +350,61 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 ## Reusable Workflows
 
+### Get Build Metadata
+
+**File:** [`.github/workflows/call-get-metadata.yaml`](./call-get-metadata.yaml)
+
+**Purpose:** Extracts build metadata (version, date, linux targets, OSS version) required for builds. Handles differences between PR builds, staging builds, and releases.
+
+**Inputs:**
+
+- `ref` - The commit, SHA, or branch to use in this repository. Default: `main`
+- `get-version-from-tag` - If true, extract version from git tag (for releases); if false, from Dockerfile (for PRs/staging). Default: `false`
+- `use-full-linux-targets` - If true, use `.linux_targets` from build-config.json (for PR builds); if false, use `.release.linux_targets` (for staging/releases). Default: `true`
+
+**Jobs:**
+
+1. **get-metadata** - Extracts metadata from repository files
+
+**Outputs:**
+
+- `date` - Nightly build date/timestamp (always generated as `YYYY-MM-DD-HH_MM_SS` format)
+- `linux-targets` - JSON array of Linux build targets (full set for PRs, reduced set for staging/releases)
+- `version` - The build version (from Dockerfile or git tag)
+- `oss-version` - The OSS (Fluent Bit) version from source/oss_version.txt
+
+**Usage Examples:**
+
+PR builds (full targets, version from Dockerfile):
+```yaml
+get-metadata:
+  uses: ./.github/workflows/call-get-metadata.yaml
+  with:
+    ref: ${{ github.ref }}
+    get-version-from-tag: false
+    use-full-linux-targets: true
+```
+
+Staging builds (release targets, version from Dockerfile):
+```yaml
+get-metadata:
+  uses: ./.github/workflows/call-get-metadata.yaml
+  with:
+    ref: ${{ github.ref }}
+    get-version-from-tag: false
+    use-full-linux-targets: false
+```
+
+Release builds (release targets, version from git tag):
+```yaml
+get-metadata:
+  uses: ./.github/workflows/call-get-metadata.yaml
+  with:
+    ref: ${{ github.ref }}
+    get-version-from-tag: true
+    use-full-linux-targets: false
+```
+
 ### Build Containers
 
 **File:** [`.github/workflows/call-build-containers.yaml`](./call-build-containers.yaml)
