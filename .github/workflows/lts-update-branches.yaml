@@ -47,6 +47,10 @@ jobs:
         run: |
           git fetch
           git checkout origin/main -- .github/
+          # Grab any extra scripts that may have been added in case they are needed for the workflow updates
+          git checkout origin/main -- scripts/
+          # Never update setup-code.sh or any other scripts that are used to set up the build environment, as those may be different for the LTS branch and we don't want to break the build.
+          git restore --cached scripts/setup-code.sh
         shell: bash
 
       - name: Debug
