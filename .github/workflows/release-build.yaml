@@ -10,6 +10,9 @@ env:
   LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
   LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
   LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
+  # Single definition of image names
+  UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
+  DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
 
 # Default to least permissions and then we can add as needed for each job.
 # This is a secure by default approach and also makes it easier to reason
@@ -120,8 +123,6 @@ jobs:
       # contents: write
       id-token: write
     env:
-      UBI_IMAGE_NAME: ghcr.io/telemetryforge/agent/ubi
-      DISTROLESS_IMAGE_NAME: ghcr.io/telemetryforge/agent/debian
       TAG: ${{ needs.build-image.outputs.version }}
     steps:
       - name: Harden the runner
@@ -141,6 +142,16 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+          service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
+
+      - name: Create output directory for parallel jobs to use
+        run: mkdir -p output
+        shell: bash
 
       - parallel:
           - name: Sign packages
@@ -183,7 +194,6 @@ jobs:
           - name: Save image as tarball
             if: ${{ needs.build-image.result == 'success' }}
             run: |
-              mkdir -p output
               skopeo copy \
                 --all \
                 --remove-signatures \
