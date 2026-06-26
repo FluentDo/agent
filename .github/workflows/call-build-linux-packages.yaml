@@ -40,9 +40,6 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
-  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
-  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
 
 permissions:
   contents: read
@@ -50,7 +47,8 @@ permissions:
 jobs:
   build-packages:
     name: agent - ${{ matrix.distro }} package build and upload
-    runs-on: ${{ (contains(matrix.distro, 'arm') && env.LINUX_ARM_RUNNER) || (contains(matrix.distro, 'centos/6') && env.LINUX_AMD_LARGE_RUNNER) || env.LINUX_AMD_RUNNER }}
+    # Pick runner based on distro - override via repo variables to switch runner pools without workflow changes, otherwise defaults are used
+    runs-on: ${{ (contains(matrix.distro, 'arm') && (vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm')) || (contains(matrix.distro, 'centos/6') && (vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb')) || (vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest') }}
     timeout-minutes: 60
     permissions:
       contents: read

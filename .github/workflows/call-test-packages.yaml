@@ -33,7 +33,6 @@ env:
   FLUENTDO_AGENT_VERSION: ${{ inputs.version }}
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
 
 permissions:
   contents: read
@@ -110,7 +109,7 @@ jobs:
     needs:
       - call-test-packages-get-meta
     # We only run tests on AMD runners here
-    runs-on: ${{ env.LINUX_AMD_RUNNER }}
+    runs-on: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: read

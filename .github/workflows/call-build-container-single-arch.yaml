@@ -47,10 +47,6 @@ on:
 
 env:
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
-  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
-  LINUX_S390X_RUNNER: ${{ vars.LINUX_S390X_RUNNER || 'ubuntu-24.04-s390x' }}
-
 permissions:
   contents: read
 
@@ -60,7 +56,8 @@ jobs:
       contents: read
       packages: write
     name: ${{ inputs.platform }}/production container image build
-    runs-on: ${{ (contains(inputs.platform, 'arm') && env.LINUX_ARM_RUNNER) || (contains(inputs.platform, 's390x') && env.LINUX_S390X_RUNNER) || env.LINUX_AMD_RUNNER }}
+    # Pick runner based on platform - override via repo variables to switch runner pools without workflow changes, otherwise defaults are used
+    runs-on: ${{ (contains(inputs.platform, 'arm') && (vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm')) || (contains(inputs.platform, 's390x') && (vars.LINUX_S390X_RUNNER || 'ubuntu-24.04-s390x')) || (vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest') }}
     outputs:
       digest: ${{ steps.production.outputs.digest }}
     steps:
