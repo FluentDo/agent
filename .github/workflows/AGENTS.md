@@ -8,7 +8,7 @@ Every workflow file must use the appropriate prefix based on when it runs:
 
 | Prefix | Rule | Examples |
 |---|---|---|
-| `pr-` | Workflow triggers **only on pull requests** (`pull_request` event) | `pr-build.yaml`, `pr-lint.yaml`, `pr-lint-packages.yaml`, `pr-dependency-review.yml` |
+| `pr-` | Workflow triggers **only on pull requests** (`pull_request` event) | `pr-container-build.yaml`, `pr-package-build.yaml`, `pr-lint.yaml`, `pr-lint-packages.yaml`, `pr-dependency-review.yml` |
 | `release-` | Workflow triggers **only on version tag pushes** (`v*` tags) | `release-build.yaml`, `release-update-version.yaml` |
 | `lts-` | Workflow is specifically about **LTS branch maintenance** | `lts-update-branches.yaml` |
 | `call-` | **Reusable workflow** called by other workflows via `uses:` | `call-build-containers.yaml`, `call-test-packages.yaml` |
@@ -25,13 +25,14 @@ The main build pipeline is split into three files based on trigger context:
 
 | File | Trigger | Purpose |
 |---|---|---|
-| `pr-build.yaml` | `pull_request` | PR validation — containers always built; packages opt-in via labels |
+| `pr-container-build.yaml` | `pull_request` | PR validation for container build and container tests |
+| `pr-package-build.yaml` | `pull_request` | PR validation for package build and package tests (label-gated) |
 | `build.yaml` | `push` to `main`/`release/**`, `workflow_dispatch` | Full build + sign + GCS staging upload on every branch commit |
 | `release-build.yaml` | `push` tags `v*` | Full release — GitHub release, SBOMs, image promotion, docs update |
 
 ### PR labels that control optional builds
 
-These labels on a PR enable additional jobs in `pr-build.yaml`:
+These labels on a PR enable additional jobs in `pr-package-build.yaml`:
 
 | Label | Effect |
 |---|---|
@@ -57,16 +58,18 @@ Composite actions live under `.github/actions/<name>/action.yml` and contain ste
 ### Workflow simplification principle
 
 Each workflow should only contain steps that are relevant for its specific trigger context:
-- **`pr-build.yaml`**: No signing, no GCS uploads, no GitHub release creation, no SBOM generation.
+- **`pr-container-build.yaml`**: Container-only PR validation path (no package jobs).
+- **`pr-package-build.yaml`**: Label-gated package build/test path for PRs.
 - **`build.yaml`**: Signing + GCS staging upload only. No container SBOM, no GitHub release, no container tarballs.
 - **`release-build.yaml`**: Full release — signing, SBOM, container tarballs, GitHub release, GCS release upload, docs update.
 
 Do not add conditions like `if: github.ref_type == 'tag'` or `if: github.event_name != 'pull_request'` inside a workflow to gate steps — instead, put those steps in the correct workflow file.
 
-All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows. The `call-get-metadata.yaml` workflow is always the first job in `pr-build.yaml`, `build.yaml`, and `release-build.yaml` — it outputs version, date, linux targets, and OSS version that downstream jobs depend on.
+All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows. The `call-get-metadata.yaml` workflow is the first job in `pr-container-build.yaml`, `pr-package-build.yaml`, `build.yaml`, and `release-build.yaml` — it outputs version, date, linux targets, and OSS version that downstream jobs depend on.
 
 | File | Purpose |
 |---|---|
+| `call-get-image-base-names.yaml` | Returns canonical UBI and Debian image base names |
 | `call-get-metadata.yaml` | Extracts build metadata (version, date, linux targets, OSS version) — handles differences between PR, staging, and release builds using boolean inputs |
 | `call-build-containers.yaml` | Builds multi-arch container images and signs them |
 | `call-build-container-manifest-and-sign.yaml` | Builds and signs a multi-arch manifest for a single image base |
@@ -105,7 +108,7 @@ This matches the `name:` field in `build.yaml`. **If you rename the `build.yaml`
 
 ### `tests-complete` job
 
-The `tests-complete` job in `pr-build.yaml`, `build.yaml`, and `release-build.yaml` acts as a single branch-protection status check. Its job **name must remain `All tests complete`** (this is what branch protection rules reference). Do not rename it.
+`tests-complete` jobs in PR, branch, and release workflows act as branch-protection status checks. Do not rename these jobs unless branch protection rules are updated accordingly.
 
 ### `pr-lint-packages.yaml` self-reference
 
@@ -122,7 +125,7 @@ If the file is renamed, this path must be updated.
   uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
   ```
 - All workflows use `step-security/harden-runner` as the first step.
-- `permissions: read-all` is set at the workflow level; individual jobs add only the permissions they need.
+- Top-level workflows commonly use `permissions: read-all`; reusable workflows default to `contents: read` and only elevate specific job permissions when required.
 - Secrets are retrieved from GCP Secret Manager at runtime — do not hard-code secrets.
 - The `STEP_SECURITY_EGRESS_POLICY` environment variable controls network egress policy (default: `audit`).
 

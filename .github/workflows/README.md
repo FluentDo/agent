@@ -11,7 +11,8 @@ This directory contains the GitHub Actions workflows and reusable actions for th
   - [Overview](#overview)
   - [Workflows](#workflows)
     - [Filename Conventions](#filename-conventions)
-    - [PR Build and Test](#pr-build-and-test)
+    - [PR Container Build and Test](#pr-container-build-and-test)
+    - [PR Package Build and Test](#pr-package-build-and-test)
     - [PR Comment Build](#pr-comment-build)
     - [Branch Build and Test](#branch-build-and-test)
     - [Release](#release)
@@ -26,6 +27,7 @@ This directory contains the GitHub Actions workflows and reusable actions for th
     - [LTS Branch Updates](#lts-branch-updates)
   - [Reusable Workflows](#reusable-workflows)
     - [Get Build Metadata](#get-build-metadata)
+    - [Get Image Base Names](#get-image-base-names)
     - [Build Containers](#build-containers)
     - [Build Single Architecture Container](#build-single-architecture-container)
     - [Build Linux Packages](#build-linux-packages)
@@ -77,7 +79,7 @@ Workflow filenames use a prefix to indicate when they run:
 
 | Prefix | When it runs | Example |
 |---|---|---|
-| `pr-` | Pull requests only | `pr-build.yaml`, `pr-lint.yaml` |
+| `pr-` | Pull requests only | `pr-container-build.yaml`, `pr-package-build.yaml`, `pr-lint.yaml` |
 | `release-` | Version tag pushes (`v*`) only | `release-build.yaml` |
 | `lts-` | LTS branch maintenance | `lts-update-branches.yaml` |
 | `call-` | Reusable workflows (called by other workflows) | `call-build-containers.yaml` |
@@ -87,35 +89,56 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 | Workflow | File | Trigger |
 |---|---|---|
-| PR Build and Test | [`pr-build.yaml`](./pr-build.yaml) | Pull requests |
+| PR Container Build and Test | [`pr-container-build.yaml`](./pr-container-build.yaml) | Pull requests |
+| PR Package Build and Test | [`pr-package-build.yaml`](./pr-package-build.yaml) | Pull requests |
 | Branch Build and Test | [`build.yaml`](./build.yaml) | Push to `main`/`release/**`, manual dispatch |
 | Release | [`release-build.yaml`](./release-build.yaml) | Push of version tags (`v*`) |
 
-### PR Build and Test
+### PR Container Build And Test
 
-**File:** [`.github/workflows/pr-build.yaml`](./pr-build.yaml)
+**File:** [`.github/workflows/pr-container-build.yaml`](./pr-container-build.yaml)
 
 **Triggers:**
 
 - Pull requests (opened, synchronize, reopened, labeled)
 
-**Purpose:** Builds and tests the minimum required for PR validation. Package builds are gated behind labels to reduce CI cost and speed up iteration.
+**Purpose:** Builds and tests container images for PR validation.
 
 **Jobs:**
 
 1. **get-meta** - Extracts metadata including version, build type, and target platforms
 2. **build-image** - Builds container images (UBI and Debian-based) for AMD64 PR validation
-3. **build-linux** - Builds Linux packages — only with `build-packages` or `build-linux` label
-4. **build-windows** - Builds Windows packages — only with `build-packages` or `build-windows` label
-5. **build-macos** - Builds macOS packages — only with `build-packages` or `build-macos` label
-6. **test-containers** - Runs container tests including BATS and Kubernetes tests
-7. **test-packages** - Tests Linux packages on target distributions (runs if build-linux ran)
-8. **tests-complete** - Aggregates test results (branch protection status check)
+3. **test-containers** - Runs container tests including BATS and Kubernetes tests
+4. **tests-complete** - Aggregates container test results
 
 **Key Features:**
 
 - Container images always built for every PR (AMD64 only, UBI and Debian variants)
-- Package builds opt-in via PR labels (`build-packages`, `build-linux`, `build-windows`, `build-macos`)
+- Uses the full PR linux target matrix from `build-config.json`
+- Concurrency group cancels previous runs on new commits
+
+### PR Package Build And Test
+
+**File:** [`.github/workflows/pr-package-build.yaml`](./pr-package-build.yaml)
+
+**Triggers:**
+
+- Pull requests (opened, synchronize, reopened, labeled)
+
+**Purpose:** Builds and tests packages for PRs when package labels are present.
+
+**Jobs:**
+
+1. **get-meta** - Extracts metadata including version, build type, and target platforms
+2. **build-linux** - Builds Linux packages — only with `build-packages` or `build-linux` label
+3. **build-windows** - Builds Windows packages — only with `build-packages` or `build-windows` label
+4. **build-macos** - Builds macOS packages — only with `build-packages` or `build-macos` label
+5. **test-packages** - Tests Linux packages on target distributions (runs when Linux package build runs)
+6. **tests-complete** - Aggregates package build/test results
+
+**Key Features:**
+
+- Package builds are opt-in via PR labels (`build-packages`, `build-linux`, `build-windows`, `build-macos`)
 - Uses the full PR linux target matrix from `build-config.json`
 - Concurrency group cancels previous runs on new commits
 
@@ -350,7 +373,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Triggers:**
 
-- Weekly schedule (Monday 06:17 UTC)
+- Weekly schedule (Monday 06:00 UTC)
 - Manual workflow dispatch
 
 **Purpose:** Keeps the pinned reusable workflow SHA in `release-build.yaml` up to date with the latest commit on `telemetryforge/documentation` `main` branch, while still using immutable SHA pinning.
@@ -363,14 +386,14 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 - Strict SHA pinning maintained in `release-build.yaml`
 - Automatic upstream main-branch SHA resolution via GitHub API
-- Change-only PR creation (no PR if SHA is already current)
+- No-op safe updates (no PR when there is no file diff)
 - `dry-run` option for manual validation without PR creation
 - Pin resolution/update logic is implemented in `scripts/update-docs-workflow-pin.sh` for local verification
 
 **Local verification:**
 
-- `./scripts/update-docs-workflow-pin.sh --no-write`
 - `./scripts/update-docs-workflow-pin.sh`
+- `TARGET_WORKFLOW=.github/workflows/release-build.yaml ./scripts/update-docs-workflow-pin.sh`
 
 ### Update Version on Release
 
@@ -448,6 +471,25 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 - `ubi-image-base` - Canonical UBI image base (`ghcr.io/telemetryforge/agent/ubi`)
 - `debian-image-base` - Canonical Debian image base (`ghcr.io/telemetryforge/agent/debian`)
 
+### Get Image Base Names
+
+**File:** [`.github/workflows/call-get-image-base-names.yaml`](./call-get-image-base-names.yaml)
+
+**Purpose:** Provides canonical UBI and Debian image base names as reusable outputs.
+
+**Inputs:**
+
+- None
+
+**Jobs:**
+
+1. **get-image-bases** - Exposes canonical image base names for downstream workflows
+
+**Outputs:**
+
+- `ubi-image-base` - Canonical UBI image base (`ghcr.io/telemetryforge/agent/ubi`)
+- `debian-image-base` - Canonical Debian image base (`ghcr.io/telemetryforge/agent/debian`)
+
 **Usage Examples:**
 
 PR builds (full targets, version from Dockerfile):
@@ -502,7 +544,7 @@ get-metadata:
 
 **Jobs:**
 
-1. **resolve-image-bases** - Reuses metadata workflow outputs for canonical UBI and Debian image base names
+1. **resolve-image-bases** - Resolves canonical UBI and Debian image base names via `call-get-image-base-names.yaml`
 2. **build-ubi-single-arch-container-images** - Matrix-calls single-arch builds for UBI across selected platforms
 3. **build-debian-single-arch-container-images** - Matrix-calls single-arch builds for Debian across selected platforms
 4. **build-ubi-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for UBI image
@@ -868,7 +910,8 @@ sequenceDiagram
   participant PR as pull_request
   participant Push as push(main/release/**)
   participant Tag as push(v*)
-  participant PRBuild as pr-build.yaml
+  participant PRContainer as pr-container-build.yaml
+  participant PRPackage as pr-package-build.yaml
   participant BranchBuild as build.yaml
   participant RelBuild as release-build.yaml
   participant Registry as GHCR
@@ -876,16 +919,19 @@ sequenceDiagram
   participant Docs as External Docs Workflow
 
   alt PR validation context
-    PR->>PRBuild: Trigger PR pipeline
-    PRBuild->>PRBuild: get-meta (full linux targets)
-    PRBuild->>PRBuild: build-image (platforms=[amd64], UBI+Debian)
-    PRBuild->>Registry: Push PR container images
-    PRBuild->>PRBuild: test-containers (UBI+Debian)
+    PR->>PRContainer: Trigger container PR pipeline
+    PRContainer->>PRContainer: get-meta (full linux targets)
+    PRContainer->>PRContainer: build-image (platforms=[amd64], UBI+Debian)
+    PRContainer->>Registry: Push PR container images
+    PRContainer->>PRContainer: test-containers (UBI+Debian)
+    PRContainer->>PRContainer: tests-complete
     opt PR labels request package builds
-      PRBuild->>PRBuild: build-linux / build-windows / build-macos
-      PRBuild->>PRBuild: test-packages
+      PR->>PRPackage: Trigger package PR pipeline
+      PRPackage->>PRPackage: get-meta (full linux targets)
+      PRPackage->>PRPackage: build-linux / build-windows / build-macos
+      PRPackage->>PRPackage: test-packages
+      PRPackage->>PRPackage: tests-complete
     end
-    PRBuild->>PRBuild: tests-complete
   else Branch staging context
     Push->>BranchBuild: Trigger branch pipeline
     BranchBuild->>BranchBuild: get-meta (release linux targets)

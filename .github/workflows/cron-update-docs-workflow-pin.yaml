@@ -56,7 +56,7 @@ jobs:
         with:
           secrets: |-
             github-pat:projects/626836145334/secrets/GITHUB_CI_PAT
-        
+
       - name: Create PR with updated docs workflow pin
         id: cpr
         if: ${{ github.event_name != 'workflow_dispatch' || !github.event.inputs.dry-run }}
