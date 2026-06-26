@@ -11,13 +11,6 @@ on:
     paths:
       - "source/**"
       - ".github/workflows/unit-tests.yaml"
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "The git reference to checkout"
-        required: false
-        type: string
-        default: "main"
 
 env:
   # Set once from repo variable or override here for testing
@@ -60,8 +53,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Setup environment
         # Check the source/packaging/docker/ubuntu/Dockerfile for the dependencies we need
@@ -213,7 +204,7 @@ jobs:
         uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           # Add any jobs that can be skipped here to avoid failure of this job
-          # allowed-skips: build-linux,build-windows
+          # allowed-skips: xxx
           # Convert the needs object to JSON to pass it in
           jobs: ${{ toJSON(needs) }}
 

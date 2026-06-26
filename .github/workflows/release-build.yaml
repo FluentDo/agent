@@ -27,10 +27,10 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      build-type: ${{ steps.set-build-type.outputs.build-type }}
-      date: ${{ steps.set-meta.outputs.date }}
+      # Disable nightly build info for releases as we want to use the version number for the build and not a timestamp
+      date: ''
       # For releases use the main/release target set
-      linux-targets: ${{ steps.set-meta.outputs.main-linux-targets }}
+      linux-targets: ${{ steps.set-meta.outputs.linux-targets }}
       version: ${{ steps.set-version.outputs.version }}
       oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
     steps:
@@ -45,45 +45,15 @@ jobs:
       - name: Debug
         uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
 
-      - name: Simple variable for type of build, i.e. release or staging
-        id: set-build-type
-        run: |
-          echo "Running build of type: $BUILD_TYPE"
-          echo "build-type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          BUILD_TYPE: ${{ github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/') && 'release' || 'staging' }}
-
-      - name: Get current date for nightly build info
-        id: set-date
-        run: |
-          if [[ '${{ steps.set-build-type.outputs.build-type }}' == 'release' ]]; then
-              echo "date=" >> $GITHUB_OUTPUT
-          else
-              echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
       - name: Get the versions to use
         # Look for the default line in the Dockerfile
         id: set-version
         run: |
-          # Support LTS version for backwards compatibility, but default to the new version variable
-          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
-              echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
-              VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          else
-              echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
-              VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          fi
-
           # For releases we use the tag
-          if [[ '${{ steps.set-build-type.outputs.build-type }}' == 'release' ]]; then
-              TAG_NAME=${GITHUB_REF#refs/tags/}
-              echo "Found tag: $TAG_NAME"
-              # Strip first character
-              VERSION=${TAG_NAME:1}
-          fi
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Found tag: $TAG_NAME"
+          # Strip first character
+          VERSION=${TAG_NAME:1}
           echo "Using version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         shell: bash
@@ -92,13 +62,9 @@ jobs:
         # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
         id: set-meta
         run: |
-          PR_LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
-          echo "pr-linux-targets=$PR_LINUX_TARGETS"
-          echo "pr-linux-targets=$PR_LINUX_TARGETS" >> $GITHUB_OUTPUT
-
-          MAIN_LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS"
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS" >> $GITHUB_OUTPUT
+          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
+          echo "main-linux-targets=$LINUX_TARGETS"
+          echo "main-linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
         shell: bash
         env:
           JSON_FILE_NAME: build-config.json
@@ -223,44 +189,6 @@ jobs:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Placeholder to make it simple to create a status check on this, do not change name.
-  # Instead of modifying branch protection rules every time we add a new job, we just
-  # add it as a dependency of this job.
-  # This job must always run last so it depends on all other jobs that must complete.
-  # If you add a new job that must complete then add it here.
-  tests-complete:
-    name: All tests complete
-    # We use this to always run even if a previous job fails or is skipped (which we check for)
-    if: always()
-    needs:
-      - build-linux
-      - build-windows
-      - build-image
-      - test-containers
-      # TODO: remove once failures are resolved to ensure auto-release job still goes ahead with latest commit
-      # https://github.com/telemetryforge/agent/issues/73
-      # - test-packages
-      # Add additional jobs here as required that must complete
-    runs-on: ubuntu-latest
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
-
-      - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
-        with:
-          # Add any jobs that can be skipped here to avoid failure of this job
-          allowed-skips: test-packages
-          # Convert the needs object to JSON to pass it in
-          jobs: ${{ toJSON(needs) }}
-      - name: All tests complete
-        run: echo "All tests complete"
-        shell: bash
-
-  # runs for every commit except only versioned releases are pushed. this allows dry running the job for every PR and
-  # allows dependent downstream jobs to dry run as well.
   release:
     name: Create release
     needs:
@@ -269,7 +197,7 @@ jobs:
       # We need packages to be built for a release
       - build-linux
       - build-windows
-      # Deliberately exclude the following for a release and also to dry run PRs
+      # Deliberately exclude the following for a release
       # - copy-common-images
       # - tests-complete
     runs-on: ubuntu-latest
@@ -482,7 +410,7 @@ jobs:
         with:
           path: output/
           # We still use the old buckets from before our rename
-          destination: fluentdo-agent-${{ needs.get-meta.outputs.build-type }}/${{ needs.get-meta.outputs.version }}/
+          destination: fluentdo-agent-release/${{ needs.get-meta.outputs.version }}/
 
   update-docs:
     needs:

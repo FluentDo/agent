@@ -31,10 +31,9 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      build-type: ${{ steps.set-build-type.outputs.build-type }}
-      date: ${{ steps.set-meta.outputs.date }}
+      date: ${{ steps.set-date.outputs.date }}
       # For PRs we can build for all possible targets but we use a reduced set for main/releases to keep costs/time down
-      linux-targets: ${{ github.event_name == 'pull_request' && steps.set-meta.outputs.pr-linux-targets || steps.set-meta.outputs.main-linux-targets }}
+      linux-targets: ${{ steps.set-meta.outputs.linux-targets }}
       version: ${{ steps.set-version.outputs.version }}
       oss-version: ${{ steps.set-oss-version.outputs.oss-version }}
     steps:
@@ -49,23 +48,10 @@ jobs:
       - name: Debug
         uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
 
-      - name: Simple variable for type of build, i.e. release or staging
-        id: set-build-type
-        run: |
-          echo "Running build of type: $BUILD_TYPE"
-          echo "build-type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          BUILD_TYPE: ${{ github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/') && 'release' || 'staging' }}
-
       - name: Get current date for nightly build info
         id: set-date
         run: |
-          if [[ '${{ steps.set-build-type.outputs.build-type }}' == 'release' ]]; then
-              echo "date=" >> $GITHUB_OUTPUT
-          else
-              echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
-          fi
+          echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Get the versions to use
@@ -81,13 +67,6 @@ jobs:
               VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
           fi
 
-          # For releases we use the tag
-          if [[ '${{ steps.set-build-type.outputs.build-type }}' == 'release' ]]; then
-              TAG_NAME=${GITHUB_REF#refs/tags/}
-              echo "Found tag: $TAG_NAME"
-              # Strip first character
-              VERSION=${TAG_NAME:1}
-          fi
           echo "Using version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         shell: bash
@@ -96,13 +75,9 @@ jobs:
         # Read from the file and remove newline characters: https://stackoverflow.com/a/64627966
         id: set-meta
         run: |
-          PR_LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
-          echo "pr-linux-targets=$PR_LINUX_TARGETS"
-          echo "pr-linux-targets=$PR_LINUX_TARGETS" >> $GITHUB_OUTPUT
-
-          MAIN_LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS"
-          echo "main-linux-targets=$MAIN_LINUX_TARGETS" >> $GITHUB_OUTPUT
+          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
+          echo "linux-targets=$LINUX_TARGETS"
+          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
         shell: bash
         env:
           JSON_FILE_NAME: build-config.json
@@ -140,7 +115,7 @@ jobs:
       definition: ${{ (contains(matrix.image-base, 'debian') && 'Dockerfile.debian') || 'Dockerfile.ubi' }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
       # Request to build on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
-      amd-runner-label: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-self-hosted') && 'self-ubuntu-latest') || env.LINUX_AMD_RUNNER }}
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
       # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
@@ -161,8 +136,8 @@ jobs:
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
       # Request to build on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
-      amd-runner-label: ${{ (contains(github.event.pull_request.labels.*.name, 'build-self-hosted') && 'self-ubuntu-latest') || env.LINUX_AMD_RUNNER }}
-      large-amd-runner-label: ${{ (contains(github.event.pull_request.labels.*.name, 'build-self-hosted') && 'self-ubuntu-latest') || env.LINUX_AMD_LARGE_RUNNER }}
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
+      large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
       # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
@@ -223,7 +198,7 @@ jobs:
       ref: ${{ github.ref }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
       # Request to run on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
-      amd-runner-label: ${{ (contains(github.event.pull_request.labels.*.name, 'build-self-hosted') && 'self-ubuntu-latest') || env.LINUX_AMD_RUNNER }}
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
