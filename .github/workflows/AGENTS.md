@@ -185,4 +185,6 @@ When making changes to workflows or workflow-related files:
 
 - **Never commit changes automatically.** Modify files only and let the user decide when to commit. This ensures the user maintains full control over their repository state and commit history.
 - Always update `README.md` when making changes to workflows (per the README Maintenance section above).
+- Always run `./scripts/format-yaml-files.sh` after making any changes to YAML workflow files to ensure consistent formatting. This must be done before changes are committed.
 - Test workflow changes before committing to ensure they don't introduce breaking changes.
+- Never use emojis or emphatic dashes (em-dashes or long hyphens) in workflow files, documentation, or commit messages. Use plain text formatting only.
