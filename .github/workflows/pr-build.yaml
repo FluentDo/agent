@@ -36,30 +36,17 @@ jobs:
     uses: ./.github/workflows/call-build-containers.yaml
     needs:
       - get-meta
-    strategy:
-      fail-fast: false
-      matrix:
-        image-base:
-          - "ghcr.io/telemetryforge/agent/ubi"
-          - "ghcr.io/telemetryforge/agent/debian"
     permissions:
       contents: read
       packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
       id-token: write
     with:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}
-      image-base: ${{ matrix.image-base }}
+      platforms: '["amd64"]'
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
-      # Pick the Dockerfile to use for each image
-      definition: ${{ (contains(matrix.image-base, 'debian') && 'Dockerfile.debian') || 'Dockerfile.ubi' }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      # Request to build on self-hosted runners if this is a PR and we have the label set, otherwise use the standard runners
       amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-      # No self-hosted ARM runners yet so always use the standard ones
-      # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
