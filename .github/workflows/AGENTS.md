@@ -41,7 +41,28 @@ These labels on a PR enable additional jobs in `pr-build.yaml`:
 | `build-packages` | Builds all packages (linux + windows + macos) |
 | `build-self-hosted` | Uses self-hosted runners instead of Namespace runners |
 
-## Reusable Workflows (`call-` prefix)
+## Composite Actions
+
+Composite actions live under `.github/actions/<name>/action.yml` and contain steps that are shared by multiple jobs. They run within the calling job's context (same filesystem, same identity/OIDC).
+
+| Action | Purpose |
+|---|---|
+| `sign-packages` | Downloads `*package*` artefacts, filters headers/extras, authenticates with GCP, retrieves GPG key from Secret Manager, and signs all packages. Leaves signed packages in `./output/`. |
+| `get-package-name` | Returns the expected package name for a given target. |
+
+### When to use a composite action vs a reusable workflow
+
+- Use a **composite action** when steps share the same filesystem (e.g. signing packages then uploading them in the same job).
+- Use a **reusable workflow** (`call-*.yaml`) when the shared work can run as an independent job with its own runner.
+
+### Workflow simplification principle
+
+Each workflow should only contain steps that are relevant for its specific trigger context:
+- **`pr-build.yaml`**: No signing, no GCS uploads, no GitHub release creation, no SBOM generation.
+- **`build.yaml`**: Signing + GCS staging upload only. No container SBOM, no GitHub release, no container tarballs.
+- **`release-build.yaml`**: Full release — signing, SBOM, container tarballs, GitHub release, GCS release upload, docs update.
+
+Do not add conditions like `if: github.ref_type == 'tag'` or `if: github.event_name != 'pull_request'` inside a workflow to gate steps — instead, put those steps in the correct workflow file.
 
 All reusable workflows are in files prefixed `call-`. They are invoked via `uses: ./.github/workflows/call-*.yaml` from the main workflows.
 

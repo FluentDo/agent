@@ -1,0 +1,54 @@
+name: Sign packages
+description: >
+  Downloads build artefacts, filters development headers/extras, then signs
+  all packages and generates checksums using a GPG key retrieved from GCP
+  Secret Manager. Signed packages are left in ./output/ for the calling job.
+
+runs:
+  using: composite
+  steps:
+    - name: Download all artefacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        path: output
+        pattern: |
+          *package*
+
+    - name: Filter out headers and extra packages
+      run: |
+        find output/ -type f \( -iname '*-headers.rpm' -o -iname '*-extra.rpm' -o -iname '*-headers.deb' -o -iname '*-extra.deb' \) -delete -print
+      shell: bash
+
+    - name: Install dependencies to support signing
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y createrepo-c rpm debsigs coreutils
+      shell: bash
+
+    - name: Authenticate with GCP
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: "projects/841522437311/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+        service_account: "terraform-infra@infrastructure-464010.iam.gserviceaccount.com"
+
+    - id: get-secrets
+      name: Get GPG signing secrets from GCP Secret Manager
+      uses: "google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262" # v3.0.0
+      with:
+        secrets: |-
+          gpg_private_key:projects/626836145334/secrets/GPG_PRIVATE_KEY
+          gpg_private_key_passphrase:projects/626836145334/secrets/GPG_PRIVATE_KEY_PASSPHRASE
+
+    - name: Import GPG key for signing
+      id: import_gpg
+      uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
+      with:
+        gpg_private_key: ${{ steps.get-secrets.outputs.gpg_private_key }}
+        passphrase: ${{ steps.get-secrets.outputs.gpg_private_key_passphrase }}
+
+    - name: Sign and generate checksums
+      run: ./scripts/sign-packages.sh
+      shell: bash
+      env:
+        GPG_KEY: ${{ steps.import_gpg.outputs.name }}
+        BASE_DIR: ${{ github.workspace }}/output/

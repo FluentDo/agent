@@ -31,6 +31,7 @@ This directory contains the GitHub Actions workflows and reusable actions for th
     - [Test Packages](#test-packages)
     - [Publish Release Images](#publish-release-images)
   - [Composite Actions](#composite-actions)
+    - [Sign Packages](#sign-packages)
     - [Get Package Name](#get-package-name)
   - [Workflow Diagrams](#workflow-diagrams)
     - [Main Build and Release Flow](#main-build-and-release-flow)
@@ -133,8 +134,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 4. **build-windows** - Builds Windows packages
 5. **test-containers** - Runs container tests including BATS and Kubernetes tests
 6. **test-packages** - Tests Linux packages on target distributions
-7. **tests-complete** - Aggregates test results
-8. **release** - Signs packages and uploads to GCS staging (no GitHub release created)
+7. **staging-upload** - Signs packages (via `sign-packages` action) and uploads to GCS staging
 
 ### Release
 
@@ -638,8 +638,24 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 ## Composite Actions
 
-### Get Package Name
+### Sign Packages
 
+**File:** [`.github/actions/sign-packages/action.yml`](.github/actions/sign-packages/action.yml)
+
+**Purpose:** Downloads build artefacts, filters development headers/extras, authenticates with GCP, retrieves the GPG key from Secret Manager, and signs all packages. Signed packages are left in `./output/` for the calling job to continue with.
+
+Used by the `staging-upload` job in `build.yaml` and the `release` job in `release-build.yaml`.
+
+**Steps performed:**
+1. Download `*package*` artifacts into `output/`
+2. Filter out header and extra packages (`.rpm`, `.deb` variants)
+3. Install signing tools (`createrepo-c`, `rpm`, `debsigs`, `coreutils`)
+4. Authenticate with GCP via OIDC
+5. Retrieve GPG key and passphrase from GCP Secret Manager
+6. Import GPG key
+7. Run `./scripts/sign-packages.sh`
+
+### Get Package Name
 **File:** [`.github/actions/get-package-name/action.yml`](.github/actions/get-package-name/action.yml)
 
 **Purpose:** Converts distribution names to standardized package artifact names.
