@@ -15,14 +15,14 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
-  # Runner labels - override via repo variables to switch runner pools without workflow changes
-  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
 
 jobs:
   linux-unit-tests:
     name: Run unit tests for ${{ matrix.config.name }}
-    # 4 vCPU, 8GB RAM
-    runs-on: ${{ env.LINUX_AMD_RUNNER }}
+    # Runner labels - override via repo variables to switch runner pools without workflow changes
+    # No support for env here
+    runs-on: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+
     timeout-minutes: 30
     strategy:
       fail-fast: false

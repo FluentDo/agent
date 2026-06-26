@@ -137,87 +137,91 @@ jobs:
         run: mkdir -p output
         shell: bash
 
-      - parallel:
-          - name: Sign packages
-            # Only sign if at least one package build produced artefacts
-            if: ${{ needs.build-linux.result == 'success' || needs.build-windows.result == 'success' || needs.build-macos.result == 'success' }}
-            continue-on-error: true
-            uses: ./.github/actions/sign-packages
+      # Once https://github.com/rhysd/actionlint/issues/693 is resolved we should do these in parallel to speed up the release process. 
+      # For now we do them sequentially to avoid actionlint errors.
+      - name: Sign packages
+        # Only sign if at least one package build produced artefacts
+        if: ${{ needs.build-linux.result == 'success' || needs.build-windows.result == 'success' || needs.build-macos.result == 'success' }}
+        continue-on-error: true
+        uses: ./.github/actions/sign-packages
 
-          - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-            if: ${{ needs.build-image.result == 'success' }}
-            with:
-              image: ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
-              artifact-name: image-ubi-sbom.spdx
-              registry-username: ${{ github.actor }}
-              registry-password: ${{ secrets.GITHUB_TOKEN }}
-              output-file: image-ubi-sbom.spdx
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        if: ${{ needs.build-image.result == 'success' }}
+        with:
+          image: ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
+          artifact-name: image-ubi-sbom.spdx
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          output-file: image-ubi-sbom.spdx
 
-          - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-            if: ${{ needs.build-image.result == 'success' }}
-            with:
-              image: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
-              artifact-name: image-debian-sbom.spdx
-              registry-username: ${{ github.actor }}
-              registry-password: ${{ secrets.GITHUB_TOKEN }}
-              output-file: image-debian-sbom.spdx
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        if: ${{ needs.build-image.result == 'success' }}
+        with:
+          image: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
+          artifact-name: image-debian-sbom.spdx
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          output-file: image-debian-sbom.spdx
 
-          - name: Generate JSON schema from container
-            if: ${{ needs.build-image.result == 'success' }}
-            timeout-minutes: 1
-            # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
-            continue-on-error: true
-            run: |
-              echo "Generating JSON schema from container image"
-              docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
-              docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
-              # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
-              cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
-            shell: bash
+      - name: Generate JSON schema from container
+        if: ${{ needs.build-image.result == 'success' }}
+        timeout-minutes: 1
+        # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
+        continue-on-error: true
+        run: |
+          echo "Generating JSON schema from container image"
+          docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
+          docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
+          # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
+          cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
+        shell: bash
 
-          - name: Save image as tarball
-            if: ${{ needs.build-image.result == 'success' }}
-            run: |
-              skopeo copy \
-                --all \
-                --remove-signatures \
-                --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-                "docker://${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" \
-                "oci-archive:output/telemetryforge-agent-container.tar"
-              skopeo copy \
-                --all \
-                --remove-signatures \
-                --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-                "docker://${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" \
-                "oci-archive:output/telemetryforge-agent-container-slim.tar"
-              tar -czvf output/telemetryforge-agent-container.tar.gz output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
-              rm -f output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
-            shell: bash
+      - name: Save image as tarball
+        if: ${{ needs.build-image.result == 'success' }}
+        run: |
+          skopeo copy \
+            --all \
+            --remove-signatures \
+            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            "docker://${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" \
+            "oci-archive:output/telemetryforge-agent-container.tar"
+          skopeo copy \
+            --all \
+            --remove-signatures \
+            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            "docker://${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" \
+            "oci-archive:output/telemetryforge-agent-container-slim.tar"
+          tar -czvf output/telemetryforge-agent-container.tar.gz output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
+          rm -f output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
+        shell: bash
 
-          - name: Construct release info
-            # Add target info and OSS version to new JSON file
-            run: |
-              jq '. += { "oss_version": "${{ needs.get-meta.outputs.oss-version }}"}' build-config.json | tee output/release.json
-            shell: bash
+      - name: Construct release info
+        # Add target info and OSS version to new JSON file
+        run: |
+          jq '. += { "oss_version": "${{ needs.get-meta.outputs.oss-version }}"}' build-config.json | tee output/release.json
+        shell: bash
 
-          - name: Make nice Linux targets list
-            id: linux-targets
-            run: |
-              LINUX_TARGETS=$(echo '${{ needs.get-meta.outputs.linux-targets }}' | jq -r '. | join(", ")')
-              echo "linux-targets=$LINUX_TARGETS"
-              echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
-            shell: bash
+      - name: Make nice Linux targets list
+        id: linux-targets
+        run: |
+          LINUX_TARGETS=$(echo '${{ needs.get-meta.outputs.linux-targets }}' | jq -r '. | join(", ")')
+          echo "linux-targets=$LINUX_TARGETS"
+          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
+        shell: bash
 
-          - name: Check if commit is on default branch
-            id: check_branch
-            run: |
-              # Check if the current commit exists on the default branch
-              if git branch -r --contains ${{ github.sha }} | grep -q "origin/${{ github.event.repository.default_branch }}"; then
-                echo "is_default=true" >> $GITHUB_OUTPUT
-              else
-                echo "is_default=false" >> $GITHUB_OUTPUT
-              fi
-            shell: bash
+      - name: Check if commit is on default branch
+        id: check_branch
+        run: |
+          # Check if the current commit exists on the default branch
+          if git branch -r --contains ${{ github.sha }} | grep -q "origin/${{ github.event.repository.default_branch }}"; then
+            echo "is_default=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_default=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      # End of parallel block
+      # See https://github.com/rhysd/actionlint/issues/693
 
       - name: Package into a single tarball
         # Single tarball is used as uploading multiple artefacts is super flaky with Github Releases so this is a workaround
