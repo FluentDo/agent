@@ -93,11 +93,35 @@ If the file is renamed, this path must be updated.
 
 ## Runner Labels
 
-| Label | Where used |
-|---|---|
-| `namespace-profile-ubuntu-latest` | Standard AMD64 Linux runner |
-| `namespace-profile-ubuntu-latest-4cpu-16gb` | Large AMD64 Linux runner (package builds) |
-| `self-ubuntu-latest` | Self-hosted AMD64 runner (opt-in via `build-self-hosted` label on PRs) |
+Runner labels are never hardcoded directly in workflow files. All `namespace-profile-*` runner references are read from workflow-level `env` variables, which themselves default via repository variables. This allows changing the runner pool for all workflows by setting a single repo variable, with no workflow file changes needed.
+
+| Env var | Repo variable | Default value | Purpose |
+|---|---|---|---|
+| `LINUX_AMD_RUNNER` | `vars.LINUX_AMD_RUNNER` | `namespace-profile-ubuntu-latest` | Standard AMD64 Linux runner |
+| `LINUX_AMD_LARGE_RUNNER` | `vars.LINUX_AMD_LARGE_RUNNER` | `namespace-profile-ubuntu-latest-4cpu-16gb` | Large AMD64 Linux runner (package builds) |
+| `LINUX_ARM_RUNNER` | `vars.LINUX_ARM_RUNNER` | `namespace-profile-ubuntu-latest-arm` | ARM64 Linux runner (currently unused/commented out) |
+
+These three env vars must be declared in the `env:` block of every workflow that uses Linux runners:
+
+```yaml
+env:
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
+  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
+```
+
+Then reference them in jobs:
+```yaml
+runs-on: ${{ env.LINUX_AMD_RUNNER }}
+# or in reusable workflow calls:
+with:
+  amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
+  large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
+```
+
+The `self-ubuntu-latest` label for self-hosted runners is always referenced as a literal string (it is not configurable via repo variables).
+
+**Note:** Reusable (`call-*`) workflows keep hardcoded defaults in their `inputs:` definitions as a last-resort fallback. These should match the values above.
 
 ## Build Configuration
 

@@ -8,6 +8,10 @@ on:
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}
+  # Runner labels - override via repo variables to switch runner pools without workflow changes
+  LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
+  LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
+  LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
 
 # Default to least permissions and then we can add as needed for each job.
 # This is a secure by default approach and also makes it easier to reason
@@ -133,9 +137,9 @@ jobs:
       # Pick the Dockerfile to use for each image
       definition: ${{ (contains(matrix.image-base, 'debian') && 'Dockerfile.debian') || 'Dockerfile.ubi' }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: namespace-profile-ubuntu-latest
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
-      # arm-runner-label: "namespace-profile-ubuntu-latest-arm"
+      # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -151,10 +155,10 @@ jobs:
       target-matrix: ${{ needs.get-meta.outputs.linux-targets }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: namespace-profile-ubuntu-latest
-      large-amd-runner-label: namespace-profile-ubuntu-latest-4cpu-16gb
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
+      large-amd-runner-label: ${{ env.LINUX_AMD_LARGE_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
-      # arm-runner-label: "namespace-profile-ubuntu-latest-arm"
+      # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
 
@@ -199,7 +203,7 @@ jobs:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: namespace-profile-ubuntu-latest
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
