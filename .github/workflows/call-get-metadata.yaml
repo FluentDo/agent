@@ -35,10 +35,10 @@ on:
         value: ${{ jobs.get-metadata.outputs.oss-version }}
       ubi-image-base:
         description: The canonical base name for UBI container images.
-        value: 'ghcr.io/telemetryforge/agent/ubi'
+        value: "ghcr.io/telemetryforge/agent/ubi"
       debian-image-base:
         description: The canonical base name for Debian container images.
-        value: 'ghcr.io/telemetryforge/agent/debian'
+        value: "ghcr.io/telemetryforge/agent/debian"
 
 env:
   # Set once from repo variable or override here for testing

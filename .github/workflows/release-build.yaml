@@ -137,7 +137,7 @@ jobs:
         run: mkdir -p output
         shell: bash
 
-      # Once https://github.com/rhysd/actionlint/issues/693 is resolved we should do these in parallel to speed up the release process. 
+      # Once https://github.com/rhysd/actionlint/issues/693 is resolved we should do these in parallel to speed up the release process.
       # For now we do them sequentially to avoid actionlint errors.
       - name: Sign packages
         # Only sign if at least one package build produced artefacts
@@ -299,7 +299,7 @@ jobs:
       pull-requests: write
       id-token: write
     name: Update documentation on release
-    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@694143c942c2481eb49ccbaa99f9b6c13d25d84e
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@main
     with:
       agent-version: ${{ needs.get-meta.outputs.version }}
       oss-version: ${{ needs.get-meta.outputs.oss-version }}

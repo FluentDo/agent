@@ -165,7 +165,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
 3. **build-linux** - Builds Linux packages for all release targets
 4. **build-windows** - Builds Windows packages
-5. **build-macos** - Builds macOS packages (currently disabled with `if: false`)
+5. **build-macos** - Builds macOS packages
 6. **test-containers** - Runs container tests including BATS and Kubernetes tests
 7. **test-packages** - Tests Linux packages on target distributions
 8. **staging-upload** - Signs packages (via `sign-packages` action) and uploads to GCS staging
@@ -187,7 +187,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 2. **build-image** - Builds multi-architecture container images (UBI and Debian-based)
 3. **build-linux** - Builds Linux packages for all release targets
 4. **build-windows** - Builds Windows packages
-5. **build-macos** - Builds macOS packages (currently disabled with `if: false`)
+5. **build-macos** - Builds macOS packages
 6. **copy-common-images** - Promotes release images to standard locations
 7. **release** - Creates GitHub release with signed artefacts, SBOMs, and uploads to GCS
 8. **update-docs** - Updates documentation with new version mappings
@@ -333,7 +333,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 - Automatic tag creation based on schedule
 - Different versioning for LTS (25.10.x) and mainline (vYY.M.W)
-- Finds last successful "Build and test" workflow run
+- Finds last successful "Branch Build and Test" workflow run
 - Validates tag doesn't already exist
 - Uses PAT to trigger downstream workflows
 - Dry-run support for testing
@@ -416,6 +416,8 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 - `linux-targets` - JSON array of Linux build targets (full set for PRs, reduced set for staging/releases)
 - `version` - The build version (from Dockerfile or git tag)
 - `oss-version` - The OSS (Fluent Bit) version from source/oss_version.txt
+- `ubi-image-base` - Canonical UBI image base (`ghcr.io/telemetryforge/agent/ubi`)
+- `debian-image-base` - Canonical Debian image base (`ghcr.io/telemetryforge/agent/debian`)
 
 **Usage Examples:**
 
@@ -471,10 +473,11 @@ get-metadata:
 
 **Jobs:**
 
-1. **build-ubi-single-arch-container-images** - Matrix-calls single-arch builds for UBI across selected platforms
-2. **build-debian-single-arch-container-images** - Matrix-calls single-arch builds for Debian across selected platforms
-3. **build-ubi-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for UBI image
-4. **build-debian-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for Debian image
+1. **resolve-image-bases** - Reuses metadata workflow outputs for canonical UBI and Debian image base names
+2. **build-ubi-single-arch-container-images** - Matrix-calls single-arch builds for UBI across selected platforms
+3. **build-debian-single-arch-container-images** - Matrix-calls single-arch builds for Debian across selected platforms
+4. **build-ubi-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for UBI image
+5. **build-debian-container-image-manifest-and-sign** - Invokes reusable manifest+sign workflow for Debian image
 
 **Outputs:**
 
@@ -483,6 +486,7 @@ get-metadata:
 **Key Features:**
 
 - Multi-architecture support (AMD64, ARM64, s390x)
+- Canonical image base names sourced from metadata outputs
 - Separate UBI and Debian build chains so each manifest/sign job depends only on its own image digests
 - Explicit per-image manifest/sign calls (no matrix in orchestration layer)
 - Image signing with Cosign (key-based and OIDC)
@@ -858,7 +862,7 @@ sequenceDiagram
     BranchBuild->>BranchBuild: get-meta (release linux targets)
     BranchBuild->>BranchBuild: build-image (default platforms)
     BranchBuild->>Registry: Push signed multi-arch images
-    BranchBuild->>BranchBuild: build-linux + build-windows (+ build-macos if enabled)
+    BranchBuild->>BranchBuild: build-linux + build-windows + build-macos
     BranchBuild->>BranchBuild: test-containers + test-packages
     BranchBuild->>BranchBuild: staging-upload (sign packages)
     BranchBuild->>GCS: Upload staging artifacts
@@ -866,7 +870,7 @@ sequenceDiagram
   else Tagged release context
     Tag->>RelBuild: Trigger release pipeline
     RelBuild->>RelBuild: get-meta (version from tag)
-    RelBuild->>RelBuild: build-image + build-linux + build-windows (+ build-macos if enabled)
+    RelBuild->>RelBuild: build-image + build-linux + build-windows + build-macos
     RelBuild->>Registry: copy-common-images
     RelBuild->>RelBuild: release job (SBOM, schema, tarballs, signing)
     RelBuild->>GCS: Upload release artifacts
@@ -880,12 +884,14 @@ sequenceDiagram
 sequenceDiagram
   participant Caller as Calling Workflow
   participant Multi as call-build-containers
+  participant Meta as call-get-metadata
   participant SingleUBI as call-build-container-single-arch (UBI)
   participant SingleDeb as call-build-container-single-arch (Debian)
   participant PerImage as call-build-container-manifest-and-sign
     participant Registry as GHCR
 
   Caller->>Multi: with version/ref/platforms/nightly-build-info
+  Multi->>Meta: Resolve canonical image base names
 
   par For each UBI platform
     Multi->>SingleUBI: Invoke single-arch reusable workflow
@@ -936,7 +942,7 @@ sequenceDiagram
     BuildLinux->>Artifacts: Upload package artifacts
     Branch->>TestPkgs: Test release linux target matrix
   else Tagged release context
-    Release->>BuildLinux: Build release linux targets
+    BranchBuild->>BranchBuild: build-linux + build-windows + build-macos
     BuildLinux->>Artifacts: Upload package artifacts
     Note over Release,TestPkgs: release-build.yaml does not run package tests
   end
@@ -944,7 +950,7 @@ sequenceDiagram
 
 ### Auto Release Flow
 
-```mermaid
+    RelBuild->>RelBuild: build-image + build-linux + build-windows + build-macos
 sequenceDiagram
     participant Cron as Scheduled Trigger
   participant Manual as workflow_dispatch
@@ -1126,7 +1132,6 @@ The workflows support different runner types:
 - `namespace-profile-ubuntu-latest` - Namespace runners (4 vCPU, 8GB RAM)
 - `namespace-profile-ubuntu-latest-4cpu-16gb` - Larger Namespace runners
 - `namespace-profile-ubuntu-latest-arm` - ARM64 Namespace runners
-- `self-ubuntu-latest` - Self-hosted runners (when labeled)
 - `macos-15` - macOS Apple Silicon
 - `macos-15-intel` - macOS Intel
 - `windows-2025` - Windows Server 2025
@@ -1156,7 +1161,6 @@ Required secrets for workflows:
    - `build-linux` - Build Linux packages only
    - `build-windows` - Build Windows packages only
    - `build-macos` - Build macOS packages only
-   - `build-self-hosted` - Use self-hosted runners
 
 2. **Testing** - All changes should pass:
    - Unit tests with sanitizers

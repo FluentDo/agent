@@ -50,8 +50,7 @@ permissions:
   contents: read
 
 jobs:
-
-  # Required as reusable workflow calls cannot reference env variables from the calling workflow but can use outputs from dependent jobs. 
+  # Required as reusable workflow calls cannot reference env variables from the calling workflow but can use outputs from dependent jobs.
   # Instead we use the call-get-metadata.yaml workflow to resolve the canonical image base names and then pass them to the single-arch build jobs.
   resolve-image-bases:
     name: Resolve image base names

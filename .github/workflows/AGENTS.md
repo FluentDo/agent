@@ -39,7 +39,6 @@ These labels on a PR enable additional jobs in `pr-build.yaml`:
 | `build-windows` | Builds Windows packages |
 | `build-macos` | Builds macOS packages |
 | `build-packages` | Builds all packages (linux + windows + macos) |
-| `build-self-hosted` | Uses self-hosted runners instead of Namespace runners |
 
 ## Composite Actions
 
@@ -145,14 +144,13 @@ env:
   LINUX_AMD_RUNNER: ${{ vars.LINUX_AMD_RUNNER || 'namespace-profile-ubuntu-latest' }}
   LINUX_AMD_LARGE_RUNNER: ${{ vars.LINUX_AMD_LARGE_RUNNER || 'namespace-profile-ubuntu-latest-4cpu-16gb' }}
   LINUX_ARM_RUNNER: ${{ vars.LINUX_ARM_RUNNER || 'namespace-profile-ubuntu-latest-arm' }}
+  LINUX_S390X_RUNNER: ${{ vars.LINUX_S390X_RUNNER || 'ubuntu-24.04-s390x' }}
 ```
 
 Then reference them in jobs:
 ```yaml
 runs-on: ${{ env.LINUX_AMD_RUNNER }}
 ```
-
-The `self-ubuntu-latest` label for self-hosted runners is always referenced as a literal string (it is not configurable via repo variables).
 
 **Note:** Keep runner label selection local to reusable (`call-*`) workflows to avoid caller/reusable propagation issues.
 
