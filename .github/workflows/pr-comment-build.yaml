@@ -150,6 +150,8 @@ jobs:
     uses: ./.github/workflows/call-get-metadata.yaml
     needs: pr-build-comment
     if: needs.pr-build-comment.outputs.should-run == 'true'
+    permissions:
+      contents: read
     with:
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
       get-version-from-tag: false
@@ -162,6 +164,10 @@ jobs:
       - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-container == 'true'
     uses: ./.github/workflows/call-build-containers.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     with:
       version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -180,6 +186,8 @@ jobs:
       - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-windows == 'true'
     uses: ./.github/workflows/call-build-windows-packages.yaml
+    permissions:
+      contents: read
     with:
       version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -191,6 +199,8 @@ jobs:
       - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-macos == 'true'
     uses: ./.github/workflows/call-build-macos-packages.yaml
+    permissions:
+      contents: read
     with:
       version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -202,6 +212,9 @@ jobs:
       - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-linux == 'true'
     uses: ./.github/workflows/call-build-linux-packages.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
@@ -214,6 +227,9 @@ jobs:
       - pr-build-linux
       - get-metadata
     uses: ./.github/workflows/call-test-packages.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       build-matrix: ${{ needs.pr-build-comment.outputs.use-full-linux-targets == 'true' && needs.get-metadata.outputs.linux-targets || needs.pr-build-comment.outputs.linux-targets-json }}
       version: ${{ needs.get-metadata.outputs.version }}

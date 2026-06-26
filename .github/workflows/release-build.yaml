@@ -19,6 +19,8 @@ jobs:
   get-meta:
     name: Get meta information required for the build
     uses: ./.github/workflows/call-get-metadata.yaml
+    permissions:
+      contents: read
     with:
       get-version-from-tag: true
       use-full-linux-targets: false
@@ -46,6 +48,9 @@ jobs:
     uses: ./.github/workflows/call-build-linux-packages.yaml
     needs:
       - get-meta
+    permissions:
+      contents: read
+      packages: read
     with:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}
@@ -59,6 +64,8 @@ jobs:
     uses: ./.github/workflows/call-build-windows-packages.yaml
     needs:
       - get-meta
+    permissions:
+      contents: read
     with:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}
@@ -68,6 +75,8 @@ jobs:
     uses: ./.github/workflows/call-build-macos-packages.yaml
     needs:
       - get-meta
+    permissions:
+      contents: read
     with:
       version: ${{ needs.get-meta.outputs.version }}
       ref: ${{ github.ref }}

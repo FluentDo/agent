@@ -68,6 +68,9 @@ jobs:
     needs:
       - resolve-image-bases
     uses: ./.github/workflows/call-build-container-single-arch.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
@@ -87,6 +90,9 @@ jobs:
     needs:
       - resolve-image-bases
     uses: ./.github/workflows/call-build-container-single-arch.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
@@ -104,6 +110,10 @@ jobs:
       - build-ubi-single-arch-container-images
       - resolve-image-bases
     uses: ./.github/workflows/call-build-container-manifest-and-sign.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     with:
       image-base: ${{ needs.resolve-image-bases.outputs.ubi-image-base }}
     secrets:
@@ -116,6 +126,10 @@ jobs:
       - build-debian-single-arch-container-images
       - resolve-image-bases
     uses: ./.github/workflows/call-build-container-manifest-and-sign.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     with:
       image-base: ${{ needs.resolve-image-bases.outputs.debian-image-base }}
     secrets:

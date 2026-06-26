@@ -1258,6 +1258,10 @@ Required secrets for workflows:
    - LTS: `v25.10.x`, `v26.4.x` (incremental)
    - Mainline: `vYY.M.W` (year.month.week)
 
+5. **Reusable Workflow Permissions**:
+  - Jobs that call reusable workflows should set explicit `permissions` matching the called workflow requirements (for example `packages: write` and `id-token: write` for container build/sign paths).
+  - Do not rely on implicit defaults for reusable calls.
+
 ## Troubleshooting
 
 ### Build Failures

@@ -129,6 +129,7 @@ If the file is renamed, this path must be updated.
   ```
 - All workflows use `step-security/harden-runner` as the first step.
 - Top-level workflows commonly use `permissions: read-all`; reusable workflows default to `contents: read` and only elevate specific job permissions when required.
+- Jobs that call reusable workflows must set explicit caller `permissions` required by the callee chain (including nested reusable calls) instead of relying on implicit defaults.
 - Secrets are retrieved from GCP Secret Manager at runtime — do not hard-code secrets.
 - The `STEP_SECURITY_EGRESS_POLICY` environment variable controls network egress policy (default: `audit`).
 

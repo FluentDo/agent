@@ -19,6 +19,9 @@ jobs:
   build-packages-for-ubuntu:
     name: Building test package for Ubuntu
     uses: ./.github/workflows/call-build-linux-packages.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       version: "99.9.9"
       ref: ${{ github.ref }}
