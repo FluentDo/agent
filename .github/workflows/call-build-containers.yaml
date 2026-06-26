@@ -42,6 +42,11 @@ on:
         required: false
         type: string
         default: "ubuntu-24.04-s390x"
+      nightly-build-info:
+        description: Any special information to add to the nightly build information string.
+        required: false
+        type: string
+        default: ""
     secrets:
       cosign_private_key:
         description: The optional Cosign key to use for signing the images.
@@ -164,6 +169,7 @@ jobs:
           build-args: |
             TELEMETRY_FORGE_AGENT_VERSION=${{ inputs.version }}
             FLUENTDO_AGENT_VERSION=${{ inputs.version }}
+            FLB_NIGHTLY_BUILD=${{ inputs.nightly-build-info }}
           provenance: false
 
       - name: Export ${{ matrix.target }} digest
@@ -222,6 +228,7 @@ jobs:
           build-args: |
             TELEMETRY_FORGE_AGENT_VERSION=${{ inputs.version }}
             FLUENTDO_AGENT_VERSION=${{ inputs.version }}
+            FLB_NIGHTLY_BUILD=${{ inputs.nightly-build-info }}
           provenance: false
           push: true
           tags: ${{ steps.meta-test.outputs.tags }}

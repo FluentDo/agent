@@ -101,6 +101,7 @@ jobs:
       # Pick the Dockerfile to use for each image
       definition: ${{ (contains(matrix.image-base, 'debian') && 'Dockerfile.debian') || 'Dockerfile.ubi' }}
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
+      nightly-build-info: ${{ needs.get-meta.outputs.date }}
       amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
       # No self-hosted ARM runners yet so always use the standard ones
       # arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
