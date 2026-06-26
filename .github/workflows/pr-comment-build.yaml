@@ -1,15 +1,24 @@
 name: Trigger build on PR comment
 # Trigger a build when a comment is made on a PR with /build in the comment body
-# We can do the following builds: linux, windows, macos
+# We can do the following builds: container, linux, windows, macos
+# e.g. /build container=amd64
+# e.g. /build container=arm64,s390x
+# e.g. /build container=all
 # e.g. /build linux=<targets>
+# e.g. /build linux=all
 # e.g. /build windows
 # e.g. /build macos
-# e.g. /build linux=<targets> windows
-# e.g. /build linux=<targets> macos windows
+# e.g. /build container=amd64 linux=<targets> windows
+# e.g. /build container=all macos windows
 #
-# Linux targets can be comma-separated list of distros, e.g. ubuntu/20.04,centos/7
+# Container platforms can be comma-separated list, valid values: amd64, arm64, s390x, all
+# e.g. /build container=amd64,arm64
+# e.g. /build container=all windows
+#
+# Linux targets can be comma-separated list of distros, or 'all' to use full build-config targets
 # e.g. /build linux=ubuntu/20.04,centos/7 windows
 # e.g. /build linux=ubuntu/20.04 macos
+# e.g. /build linux=all windows
 # e.g. /build macos windows
 # e.g. /build linux=centos/7
 #
@@ -35,11 +44,16 @@ jobs:
       # Builds should be run (they may fail)
       should-run: ${{ steps.parse.outputs.should_run }}
       # Type of build to run
+      build-container: ${{ steps.parse.outputs.container }}
       build-windows: ${{ steps.parse.outputs.windows }}
       build-macos: ${{ steps.parse.outputs.macos }}
       build-linux: ${{ steps.parse.outputs.linux }}
+      # Container platforms JSON array to build
+      container-platforms-json: ${{ steps.parse.outputs.container_platforms_json }}
       # Linux targets matrix to build
       linux-targets-json: ${{ steps.parse.outputs.linux_targets_json }}
+      # Whether to use full linux targets from build-config.json (linux=all was specified)
+      use-full-linux-targets: ${{ steps.parse.outputs.use_full_linux_targets }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -67,16 +81,21 @@ jobs:
             const out = {
               windows: false,
               macos: false,
+              containerPlatforms: [],
               linuxTargets: [],
+              useFullLinuxTargets: false,
             };
 
             // Must start with '/build'
             if (!/^\/build\b/i.test(firstLine)) {
               core.setOutput('should_run', 'false');
+              core.setOutput('container', 'false');
               core.setOutput('windows', 'false');
               core.setOutput('macos', 'false');
               core.setOutput('linux', 'false');
+              core.setOutput('container_platforms_json', '[]');
               core.setOutput('linux_targets_json', '[]');
+              core.setOutput('use_full_linux_targets', 'false');
               return;
             }
 
@@ -89,103 +108,118 @@ jobs:
                       out.windows = true;
                   } else if (lower === 'macos' || lower === 'macosx' || lower === 'osx') {
                       out.macos = true;
+                  } else if (lower.startsWith('container=')) {
+                      // Parse container platforms: e.g. container=amd64 or container=arm64,s390x or container=all
+                      const rhs = raw.slice(raw.indexOf('=') + 1);
+                      const platforms = rhs.split(',').map(s => s.trim()).filter(Boolean);
+                      for (const p of platforms) {
+                        if (p === 'all') {
+                          out.containerPlatforms.push('amd64', 'arm64', 's390x');
+                        } else if (['amd64', 'arm64', 's390x'].includes(p)) {
+                          out.containerPlatforms.push(p);
+                        }
+                      }
+                      // Deduplicate
+                      out.containerPlatforms = [...new Set(out.containerPlatforms)];
                   } else if (lower.startsWith('linux=')) {
-                      // Keep original token to preserve any casing/symbols after '='
+                      // Parse linux targets: e.g. linux=ubuntu/20.04 or linux=ubuntu/20.04,centos/7 or linux=all
                       const rhs = raw.slice(raw.indexOf('=') + 1);
                       const arr = rhs.split(',').map(s => s.trim()).filter(Boolean);
-                      out.linuxTargets.push(...arr);
+                      if (arr.length === 1 && arr[0].toLowerCase() === 'all') {
+                        // Special case: linux=all means use full targets from build-config.json
+                        out.useFullLinuxTargets = true;
+                      } else {
+                        out.linuxTargets.push(...arr);
+                      }
                   }
               }
             }
 
-            const shouldRun = out.windows || out.macos || out.linuxTargets.length > 0;
+            const shouldRun = out.windows || out.macos || out.containerPlatforms.length > 0 || out.linuxTargets.length > 0 || out.useFullLinuxTargets;
 
             core.setOutput('should_run', shouldRun ? 'true' : 'false');
+            core.setOutput('container', out.containerPlatforms.length > 0 ? 'true' : 'false');
             core.setOutput('windows', out.windows ? 'true' : 'false');
             core.setOutput('macos', out.macos ? 'true' : 'false');
-            core.setOutput('linux', out.linuxTargets.length > 0 ? 'true' : 'false');
+            core.setOutput('linux', out.linuxTargets.length > 0 || out.useFullLinuxTargets ? 'true' : 'false');
+            core.setOutput('container_platforms_json', JSON.stringify(out.containerPlatforms));
             core.setOutput('linux_targets_json', JSON.stringify(out.linuxTargets));
+            core.setOutput('use_full_linux_targets', out.useFullLinuxTargets ? 'true' : 'false');
 
-  pr-build-get-metadata:
+  get-metadata:
     name: Get build metadata
+    uses: ./.github/workflows/call-get-metadata.yaml
     needs: pr-build-comment
     if: needs.pr-build-comment.outputs.should-run == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      version: ${{ steps.set-version.outputs.version }}
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
+    with:
+      ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
+      get-version-from-tag: false
+      use-full-linux-targets: true
 
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: refs/pull/${{ github.event.issue.number }}/merge
-
-      - name: Get the versions to use
-        # Look for the default line in the Dockerfile
-        id: set-version
-        run: |
-          VERSION=""
-          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
-            VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          elif grep -q "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi; then
-            VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          else
-              echo "ERROR: Could not find either version in Dockerfile."
-              cat Dockerfile.ubi
-              exit 1
-          fi
-          echo "version=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
+  pr-build-containers:
+    name: Build containers
+    needs:
+      - pr-build-comment
+      - get-metadata
+    if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-container == 'true'
+    uses: ./.github/workflows/call-build-containers.yaml
+    with:
+      version: ${{ needs.get-metadata.outputs.version }}
+      ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
+      platforms: ${{ needs.pr-build-comment.outputs.container-platforms-json }}
+      nightly-build-info: ${{ needs.get-metadata.outputs.date }}
+      dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
+      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
+      arm-runner-label: ${{ env.LINUX_ARM_RUNNER }}
+    secrets:
+      dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
+      cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+      cosign_private_key_password: ${{ secrets.COSIGN_PASSWORD }}
 
   pr-build-windows:
     name: Build Windows
     needs:
       - pr-build-comment
-      - pr-build-get-metadata
+      - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-windows == 'true'
     uses: ./.github/workflows/call-build-windows-packages.yaml
     with:
-      version: ${{ needs.pr-build-get-metadata.outputs.version }}
+      version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
 
   pr-build-macos:
     name: Build macOS
     needs:
       - pr-build-comment
-      - pr-build-get-metadata
+      - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-macos == 'true'
     uses: ./.github/workflows/call-build-macos-packages.yaml
     with:
-      version: ${{ needs.pr-build-get-metadata.outputs.version }}
+      version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
 
   pr-build-linux:
     name: Build Linux
     needs:
       - pr-build-comment
-      - pr-build-get-metadata
+      - get-metadata
     if: needs.pr-build-comment.outputs.should-run == 'true' && needs.pr-build-comment.outputs.build-linux == 'true'
     uses: ./.github/workflows/call-build-linux-packages.yaml
     with:
-      version: ${{ needs.pr-build-get-metadata.outputs.version }}
+      version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
-      target-matrix: ${{ needs.pr-build-comment.outputs.linux-targets-json }}
+      target-matrix: ${{ needs.pr-build-comment.outputs.use-full-linux-targets == 'true' && needs.get-metadata.outputs.linux-targets || needs.pr-build-comment.outputs.linux-targets-json }}
 
   test-packages:
     name: Test packages
     needs:
+      - pr-build-comment
       - pr-build-linux
+      - get-metadata
     uses: ./.github/workflows/call-test-packages.yaml
     with:
-      build-matrix: ${{ needs.pr-build-comment.outputs.linux-targets-json }}
-      version: ${{ needs.pr-build-get-metadata.outputs.version }}
+      build-matrix: ${{ needs.pr-build-comment.outputs.use-full-linux-targets == 'true' && needs.get-metadata.outputs.linux-targets || needs.pr-build-comment.outputs.linux-targets-json }}
+      version: ${{ needs.get-metadata.outputs.version }}
       ref: refs/pull/${{ needs.pr-build-comment.outputs.pr-number }}/merge
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
       amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
@@ -198,6 +232,7 @@ jobs:
     if: always()
     needs:
       - pr-build-comment
+      - pr-build-containers
       - pr-build-windows
       - pr-build-macos
       - pr-build-linux
@@ -214,10 +249,13 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.pr-build-comment.outputs.pr-number }}
+          CONTAINER_REQUESTED: ${{ needs.pr-build-comment.outputs.build-container }}
           WINDOWS_REQUESTED: ${{ needs.pr-build-comment.outputs.build-windows }}
           MACOS_REQUESTED: ${{ needs.pr-build-comment.outputs.build-macos }}
           LINUX_REQUESTED: ${{ needs.pr-build-comment.outputs.build-linux }}
+          CONTAINER_PLATFORMS_JSON: ${{ needs.pr-build-comment.outputs.container-platforms-json }}
           LINUX_TARGETS_JSON: ${{ needs.pr-build-comment.outputs.linux-targets-json }}
+          CONTAINER_RESULT: ${{ needs.pr-build-containers.result }}
           WINDOWS_RESULT: ${{ needs.pr-build-windows.result }}
           MACOS_RESULT: ${{ needs.pr-build-macos.result }}
           LINUX_RESULT: ${{ needs.pr-build-linux.result }}
@@ -250,17 +288,24 @@ jobs:
             }
 
             const requested = {
+                container: process.env.CONTAINER_REQUESTED === 'true',
                 windows: process.env.WINDOWS_REQUESTED === 'true',
                 macos: process.env.MACOS_REQUESTED === 'true',
                 linux: process.env.LINUX_REQUESTED === 'true',
             };
 
             const results = {
+                container: process.env.CONTAINER_RESULT || 'skipped',
                 windows: process.env.WINDOWS_RESULT || 'skipped',
                 macos: process.env.MACOS_RESULT || 'skipped',
                 linux: process.env.LINUX_RESULT || 'skipped',
                 testPackages: process.env.TEST_PACKAGES_RESULT || 'skipped',
             };
+
+            const containerPlatforms = (() => {
+                try { return JSON.parse(process.env.CONTAINER_PLATFORMS_JSON || '[]'); }
+                catch { return []; }
+            })();
 
             const linuxTargets = (() => {
                 try { return JSON.parse(process.env.LINUX_TARGETS_JSON || '[]'); }
@@ -268,6 +313,12 @@ jobs:
             })();
 
             const rows = [];
+            if (requested.container) {
+                const name = 'Build containers';
+                const url = byName[name] || `${context.serverUrl}/${owner}/${repo}/actions/runs/${run_id}`;
+                const platformsStr = containerPlatforms.length ? '`' + containerPlatforms.join('`, `') + '`' : '_none_';
+                rows.push(`- Containers: ${statusEmoji(results.container)} (${results.container}) — Platforms: ${platformsStr} — [Job logs](${url})`);
+            }
             if (requested.windows) {
                 const name = 'Build Windows packages';
                 const url = byName[name] || `${context.serverUrl}/${owner}/${repo}/actions/runs/${run_id}`;

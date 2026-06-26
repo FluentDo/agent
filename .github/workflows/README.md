@@ -244,29 +244,6 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 - Lists package contents and control files
 - Validates package dependencies
 
-### Test Specific Versions
-
-**File:** [`.github/workflows/test.yaml`](./test.yaml)
-
-**Triggers:**
-
-- Manual workflow dispatch only
-
-**Purpose:** Allows testing specific container image versions on-demand.
-
-**Inputs:**
-
-- `image` - Full image name (default: `ghcr.io/telemetryforge/agent`)
-- `image-tag` - Image tag to test (required)
-- `ref` - Repository reference to use (default: `main`)
-
-**Jobs:**
-
-1. **get-meta** - Extracts Kubernetes versions for testing
-2. **test-containers** - Runs container tests using the reusable workflow
-
-**Use Case:** Testing released versions or specific builds without rebuilding.
-
 ### Auto Release
 
 **File:** [`.github/workflows/cron-auto-release.yaml`](./cron-auto-release.yaml)
