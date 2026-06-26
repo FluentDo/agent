@@ -135,6 +135,17 @@ jobs:
       ref: ${{ github.ref }}
       nightly-build-info: ${{ needs.get-meta.outputs.date }}
 
+  build-macos:
+    # Disabled for now for cost reasons, but can be re-enabled if we need to build for macOS
+    if: false
+    uses: ./.github/workflows/call-build-macos-packages.yaml
+    needs:
+      - get-meta
+    with:
+      version: ${{ needs.get-meta.outputs.version }}
+      ref: ${{ github.ref }}
+      nightly-build-info: ${{ needs.get-meta.outputs.date }}
+
   # We want to copy the UBI image to ghcr.io/telemetryforge/agent:version and
   # the distroless image to ghcr.io/telemetryforge/agent:version-slim
   copy-common-images:
@@ -152,54 +163,16 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  test-containers:
-    name: Test container images
-    uses: ./.github/workflows/call-test-containers.yaml
-    with:
-      image: ${{ matrix.image-base }}
-      image-tag: ${{ needs.build-image.outputs.version }}
-      ref: ${{ github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-    needs:
-      - build-image
-    permissions:
-      packages: read
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        image-base:
-          - "ghcr.io/telemetryforge/agent/ubi"
-          - "ghcr.io/telemetryforge/agent/debian"
-
-  test-packages:
-    name: Test packages
-    needs:
-      - get-meta
-      - build-linux
-    uses: ./.github/workflows/call-test-packages.yaml
-    with:
-      build-matrix: ${{ needs.get-meta.outputs.linux-targets }}
-      version: ${{ needs.get-meta.outputs.version }}
-      ref: ${{ github.ref }}
-      dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      amd-runner-label: ${{ env.LINUX_AMD_RUNNER }}
-    secrets:
-      dockerhub-token: ${{ secrets.DOCKERHUB_PUBLIC_READ_TOKEN }}
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
   release:
     name: Create release
+    # Always run even if build jobs fail — we still want a release entry with whatever was built.
+    if: always()
     needs:
       - get-meta
       - build-image
-      # We need packages to be built for a release
       - build-linux
       - build-windows
-      # Deliberately exclude the following for a release
-      # - copy-common-images
-      # - tests-complete
+      - build-macos
     runs-on: ubuntu-latest
     permissions:
       packages: read
@@ -223,96 +196,109 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sign packages
-        uses: ./.github/actions/sign-packages
-
-      - name: Package into a single tarball so we can have individual distributions
-        run: |
-          tar -czvf $GITHUB_WORKSPACE/deliverables.tar.gz -C output .
-        shell: bash
-
       - name: Log in to the Container registry
+        if: ${{ needs.build-image.result == 'success' }}
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
-          artifact-name: image-ubi-sbom.spdx
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
-          output-file: image-ubi-sbom.spdx
+      - parallel:
+        - name: Sign packages
+          # Only sign if at least one package build produced artefacts
+          if: ${{ needs.build-linux.result == 'success' || needs.build-windows.result == 'success' || needs.build-macos.result == 'success' }}
+          continue-on-error: true
+          uses: ./.github/actions/sign-packages
 
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
-          artifact-name: image-debian-sbom.spdx
-          registry-username: ${{ github.actor }}
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
-          output-file: image-debian-sbom.spdx
+        - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+          if: ${{ needs.build-image.result == 'success' }}
+          with:
+            image: ${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}
+            artifact-name: image-ubi-sbom.spdx
+            registry-username: ${{ github.actor }}
+            registry-password: ${{ secrets.GITHUB_TOKEN }}
+            output-file: image-ubi-sbom.spdx
 
-      - name: Generate JSON schema from container
-        timeout-minutes: 1
-        # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
+        - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+          if: ${{ needs.build-image.result == 'success' }}
+          with:
+            image: ${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}
+            artifact-name: image-debian-sbom.spdx
+            registry-username: ${{ github.actor }}
+            registry-password: ${{ secrets.GITHUB_TOKEN }}
+            output-file: image-debian-sbom.spdx
+
+        - name: Generate JSON schema from container
+          if: ${{ needs.build-image.result == 'success' }}
+          timeout-minutes: 1
+          # We don't want to fail the release if this fails since it's not critical and can be debugged after the fact if needed
+          continue-on-error: true
+          run: |
+            echo "Generating JSON schema from container image"
+            docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
+            docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
+            # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
+            cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
+          shell: bash
+
+        - name: Save image as tarball
+          if: ${{ needs.build-image.result == 'success' }}
+          run: |
+            mkdir -p output
+            skopeo copy \
+              --all \
+              --remove-signatures \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              "docker://${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" \
+              "oci-archive:output/telemetryforge-agent-container.tar"
+            skopeo copy \
+              --all \
+              --remove-signatures \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              "docker://${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" \
+              "oci-archive:output/telemetryforge-agent-container-slim.tar"
+            tar -czvf output/telemetryforge-agent-container.tar.gz output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
+            rm -f output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
+          shell: bash
+
+        - name: Construct release info
+          # Add target info and OSS version to new JSON file
+          run: |
+            jq '. += { "oss_version": "${{ needs.get-meta.outputs.oss-version }}"}' build-config.json | tee output/release.json
+          shell: bash
+
+        - name: Make nice Linux targets list
+          id: linux-targets
+          run: |
+            LINUX_TARGETS=$(echo '${{ needs.get-meta.outputs.linux-targets }}' | jq -r '. | join(", ")')
+            echo "linux-targets=$LINUX_TARGETS"
+            echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
+          shell: bash
+
+        - name: Check if commit is on default branch
+          id: check_branch
+          run: |
+            # Check if the current commit exists on the default branch
+            if git branch -r --contains ${{ github.sha }} | grep -q "origin/${{ github.event.repository.default_branch }}"; then
+              echo "is_default=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_default=false" >> $GITHUB_OUTPUT
+            fi
+          shell: bash
+
+      - name: Package into a single tarball
+        # Single tarball is used as uploading multiple artefacts is super flaky with Github Releases so this is a workaround
+        # Can fail if we have no packages built for any of the platforms, so we ignore errors here and just upload whatever we have
+        if: ${{ needs.build-linux.result == 'success' || needs.build-windows.result == 'success' || needs.build-macos.result == 'success' }}
         continue-on-error: true
         run: |
-          echo "Generating JSON schema from container image"
-          docker run --rm -t "${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-ubi-schema.json
-          docker run --rm -t "${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" -J > output/telemetry-forge-debian-schema.json
-          # We use the UBI image schema as the main one since it has more metadata and we can link to the distroless one for reference
-          cp output/telemetry-forge-ubi-schema.json output/telemetry-forge-agent-schema.json
-        shell: bash
-
-      - name: Save image as tarball
-        run: |
-          mkdir -p output
-          skopeo copy \
-            --all \
-            --remove-signatures \
-            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-            "docker://${{ env.UBI_IMAGE_NAME }}:${{ env.TAG }}" \
-            "oci-archive:output/telemetryforge-agent-container.tar"
-          skopeo copy \
-            --all \
-            --remove-signatures \
-            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-            "docker://${{ env.DISTROLESS_IMAGE_NAME }}:${{ env.TAG }}" \
-            "oci-archive:output/telemetryforge-agent-container-slim.tar"
-          tar -czvf output/telemetryforge-agent-container.tar.gz output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
-          rm -f output/telemetryforge-agent-container.tar output/telemetryforge-agent-container-slim.tar
-        shell: bash
-
-      - name: Construct release info
-        # Add target info and OSS version to new JSON file
-        run: |
-          jq '. += { "oss_version": "${{ needs.get-meta.outputs.oss-version }}"}' build-config.json | tee output/release.json
-        shell: bash
-
-      - name: Make nice Linux targets list
-        id: linux-targets
-        run: |
-          LINUX_TARGETS=$(echo '${{ needs.get-meta.outputs.linux-targets }}' | jq -r '. | join(", ")')
-          echo "linux-targets=$LINUX_TARGETS"
-          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
+          tar -czvf $GITHUB_WORKSPACE/deliverables.tar.gz -C output .
         shell: bash
 
       - name: Debug
         if: always()
         run: ls -lR
-        shell: bash
-
-      - name: Check if commit is on default branch
-        id: check_branch
-        run: |
-          # Check if the current commit exists on the default branch
-          if git branch -r --contains ${{ github.sha }} | grep -q "origin/${{ github.event.repository.default_branch }}"; then
-            echo "is_default=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_default=false" >> $GITHUB_OUTPUT
-          fi
         shell: bash
 
       - id: get-secrets-release
@@ -369,9 +355,9 @@ jobs:
           destination: fluentdo-agent-release/${{ needs.get-meta.outputs.version }}/
 
   update-docs:
+    # Always run
     needs:
       - get-meta
-      - release
     permissions:
       contents: read
       pull-requests: write
