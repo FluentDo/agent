@@ -31,6 +31,7 @@ The main build pipeline is split into three files based on trigger context:
 | `release-build.yaml` | `push` tags `v*` | Full release — GitHub release, SBOMs, image promotion, docs update |
 
 `pr-container-build.yaml` intentionally uses a narrow `paths` filter so unrelated file changes (including unrelated workflow edits) do not trigger container CI.
+The current filter scope includes core runtime/build inputs such as `source/**`, `testing/**`, `config/**`, `patches/**`, `Dockerfile.*`, `build-config.json`, and workflow dependencies.
 
 ### PR labels that control optional builds
 

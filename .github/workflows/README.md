@@ -101,7 +101,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 **Triggers:**
 
 - Pull requests (opened, synchronize, reopened) with path filters
-- Paths include: `source/**`, `testing/**`, `Dockerfile.*`, `build-config.json`, `cosign.pub`, `scripts/setup-code.sh`, and the nested reusable workflow files used by this workflow
+- Paths include: `source/**`, `testing/**`, `config/**`, `patches/**`, `Dockerfile.*`, `build-config.json`, `cosign.pub`, `scripts/setup-code.sh`, and the nested reusable workflow files used by this workflow
 
 **Purpose:** Builds and tests container images for PR validation.
 

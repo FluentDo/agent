@@ -58,7 +58,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     outputs:
       date: ${{ steps.set-date.outputs.date }}
       linux-targets: ${{ steps.set-linux-targets.outputs.linux-targets }}
