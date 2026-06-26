@@ -12,7 +12,7 @@ Every workflow file must use the appropriate prefix based on when it runs:
 | `release-` | Workflow triggers **only on version tag pushes** (`v*` tags) | `release-build.yaml`, `release-update-version.yaml` |
 | `lts-` | Workflow is specifically about **LTS branch maintenance** | `lts-update-branches.yaml` |
 | `call-` | **Reusable workflow** called by other workflows via `uses:` | `call-build-containers.yaml`, `call-test-packages.yaml` |
-| _(no prefix)_ | **General purpose** — mixed triggers (PR + branch + tag), scheduled, or manual | `build.yaml`, `unit-tests.yaml`, `cron-auto-release.yaml` |
+| _(no prefix)_ | **General purpose** — mixed triggers (PR + branch + tag), scheduled, or manual | `build.yaml`, `unit-tests.yaml`, `cron-auto-release.yaml`, `cron-update-docs-workflow-pin.yaml` |
 
 When adding a new workflow file:
 1. Determine what triggers it and apply the correct prefix.

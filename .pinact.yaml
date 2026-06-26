@@ -11,3 +11,9 @@ files:
 ignore_actions:
   - name: telemetryforge/.*
     ref: main
+rules:
+  # Skip actions whose ref is a branch name in our own repos.
+  - ignore: true
+    conditions:
+      - expr: |
+          ActionRepoOwner == "telemetryforge" && ActionVersion == "main"

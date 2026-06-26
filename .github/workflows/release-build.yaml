@@ -301,7 +301,7 @@ jobs:
       pull-requests: write
       id-token: write
     name: Update documentation on release
-    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@main
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@22ab1e2f40c0c20b59beb1db70ce804b61b8b719
     with:
       agent-version: ${{ needs.get-meta.outputs.version }}
       oss-version: ${{ needs.get-meta.outputs.oss-version }}

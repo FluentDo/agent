@@ -21,6 +21,7 @@ This directory contains the GitHub Actions workflows and reusable actions for th
     - [Dependency Review](#dependency-review)
     - [Scorecard Security](#scorecard-security)
     - [Auto Release](#auto-release)
+    - [Update Docs Workflow Pin](#update-docs-workflow-pin)
     - [Update Version on Release](#update-version-on-release)
     - [LTS Branch Updates](#lts-branch-updates)
   - [Reusable Workflows](#reusable-workflows)
@@ -342,6 +343,34 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 - LTS: `v25.10.x` or `v26.4.x` (incremental patch version)
 - Mainline: `vYY.M.W` (year.month.week)
+
+### Update Docs Workflow Pin
+
+**File:** [`.github/workflows/cron-update-docs-workflow-pin.yaml`](./cron-update-docs-workflow-pin.yaml)
+
+**Triggers:**
+
+- Weekly schedule (Monday 06:17 UTC)
+- Manual workflow dispatch
+
+**Purpose:** Keeps the pinned reusable workflow SHA in `release-build.yaml` up to date with the latest commit on `telemetryforge/documentation` `main` branch, while still using immutable SHA pinning.
+
+**Jobs:**
+
+1. **update-docs-workflow-pin** - Resolves latest SHA, updates the pinned `uses:` reference if needed, and opens a PR
+
+**Key Features:**
+
+- Strict SHA pinning maintained in `release-build.yaml`
+- Automatic upstream main-branch SHA resolution via GitHub API
+- Change-only PR creation (no PR if SHA is already current)
+- `dry-run` option for manual validation without PR creation
+- Pin resolution/update logic is implemented in `scripts/update-docs-workflow-pin.sh` for local verification
+
+**Local verification:**
+
+- `./scripts/update-docs-workflow-pin.sh --no-write`
+- `./scripts/update-docs-workflow-pin.sh`
 
 ### Update Version on Release
 
