@@ -5,6 +5,26 @@ on:
       - opened
       - synchronize
       - reopened
+    paths:
+      # Core source and test inputs for container build/test
+      - source/**
+      - testing/**
+      - config/**
+      - patches/**
+      - Dockerfile.*
+      - build-config.json
+      - cosign.pub
+      - scripts/setup-code.sh
+
+      # This workflow and its nested reusable workflow dependency chain
+      - .github/workflows/pr-container-build.yaml
+      - .github/workflows/call-get-metadata.yaml
+      - .github/workflows/call-get-image-base-names.yaml
+      - .github/workflows/call-build-containers.yaml
+      - .github/workflows/call-build-container-single-arch.yaml
+      - .github/workflows/call-build-container-manifest-and-sign.yaml
+      - .github/workflows/call-test-containers.yaml
+      - .github/workflows/call-test-containers-k8s.yaml
 env:
   # Set once from repo variable or override here for testing
   STEP_SECURITY_EGRESS_POLICY: ${{ vars.STEP_SECURITY_EGRESS_POLICY || 'audit' }}

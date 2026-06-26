@@ -89,7 +89,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 | Workflow | File | Trigger |
 |---|---|---|
-| PR Container Build and Test | [`pr-container-build.yaml`](./pr-container-build.yaml) | Pull requests |
+| PR Container Build and Test | [`pr-container-build.yaml`](./pr-container-build.yaml) | Pull requests (path-filtered) |
 | PR Package Build and Test | [`pr-package-build.yaml`](./pr-package-build.yaml) | Pull requests |
 | Branch Build and Test | [`build.yaml`](./build.yaml) | Push to `main`/`release/**`, manual dispatch |
 | Release | [`release-build.yaml`](./release-build.yaml) | Push of version tags (`v*`) |
@@ -100,7 +100,8 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 **Triggers:**
 
-- Pull requests (opened, synchronize, reopened, labeled)
+- Pull requests (opened, synchronize, reopened) with path filters
+- Paths include: `source/**`, `testing/**`, `Dockerfile.*`, `build-config.json`, `cosign.pub`, `scripts/setup-code.sh`, and the nested reusable workflow files used by this workflow
 
 **Purpose:** Builds and tests container images for PR validation.
 
@@ -114,6 +115,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 **Key Features:**
 
 - Container images always built for every PR (AMD64 only, UBI and Debian variants)
+- Path-scoped triggering avoids runs for unrelated repository changes
 - Uses the full PR linux target matrix from `build-config.json`
 - Concurrency group cancels previous runs on new commits
 

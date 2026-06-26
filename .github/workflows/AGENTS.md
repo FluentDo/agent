@@ -25,10 +25,12 @@ The main build pipeline is split into three files based on trigger context:
 
 | File | Trigger | Purpose |
 |---|---|---|
-| `pr-container-build.yaml` | `pull_request` | PR validation for container build and container tests |
+| `pr-container-build.yaml` | `pull_request` (path-filtered) | PR validation for container build and container tests |
 | `pr-package-build.yaml` | `pull_request` | PR validation for package build and package tests (label-gated) |
 | `build.yaml` | `push` to `main`/`release/**`, `workflow_dispatch` | Full build + sign + GCS staging upload on every branch commit |
 | `release-build.yaml` | `push` tags `v*` | Full release — GitHub release, SBOMs, image promotion, docs update |
+
+`pr-container-build.yaml` intentionally uses a narrow `paths` filter so unrelated file changes (including unrelated workflow edits) do not trigger container CI.
 
 ### PR labels that control optional builds
 
