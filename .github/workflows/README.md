@@ -81,7 +81,7 @@ Workflow filenames use a prefix to indicate when they run:
 |---|---|---|
 | `pr-` | Pull requests only | `pr-container-build.yaml`, `pr-package-build.yaml`, `pr-lint.yaml` |
 | `release-` | Version tag pushes (`v*`) only | `release-build.yaml` |
-| `lts-` | LTS branch maintenance | `lts-update-branches.yaml` |
+| `cron-` | Scheduled automation and maintenance workflows | `cron-auto-release.yaml`, `cron-lts-update-branches.yaml` |
 | `call-` | Reusable workflows (called by other workflows) | `call-build-containers.yaml` |
 | _(none)_ | General purpose / mixed triggers | `build.yaml`, `unit-tests.yaml` |
 
@@ -427,11 +427,11 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 ### LTS Branch Updates
 
-**File:** [`.github/workflows/lts-update-branches.yaml`](./lts-update-branches.yaml)
+**File:** [`.github/workflows/cron-lts-update-branches.yaml`](./cron-lts-update-branches.yaml)
 
 **Triggers:**
 
-- Push to `main` (when `.github/**` files change)
+- Weekly schedule (Sunday 00:00 UTC)
 - Manual workflow dispatch
 
 **Purpose:** Automatically propagates `.github/` workflow and action changes from `main` into LTS release branches by opening a PR against each branch.
@@ -444,7 +444,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 
 - Targets all active LTS branches (e.g. `release/25.10-lts`)
 - Dry-run support for testing
-- Auto-triggered on workflow file changes to keep CI consistent across branches
+- Scheduled updates reduce churn from frequent dependency and workflow-action updates
 
 ## Reusable Workflows
 

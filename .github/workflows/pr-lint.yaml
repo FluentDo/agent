@@ -155,6 +155,7 @@ jobs:
         with:
           skip_push: "true"
           review: "true"
+          config: .pinact.yaml
 
   zizmor-lint:
     runs-on: ubuntu-latest

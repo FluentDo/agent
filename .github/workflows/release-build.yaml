@@ -107,8 +107,8 @@ jobs:
       # contents: write
       id-token: write
     env:
-      UBI_IMAGE_NAME: ${{ needs.build-image.outputs.ubi-image-name }}
-      DISTROLESS_IMAGE_NAME: ${{ needs.build-image.outputs.debian-image-name }}
+      UBI_IMAGE_NAME: ${{ needs.get-meta.outputs.ubi-image-base }}
+      DISTROLESS_IMAGE_NAME: ${{ needs.get-meta.outputs.debian-image-base }}
       TAG: ${{ needs.build-image.outputs.version }}
     steps:
       - name: Harden the runner
@@ -301,7 +301,8 @@ jobs:
       pull-requests: write
       id-token: write
     name: Update documentation on release
-    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@22ab1e2f40c0c20b59beb1db70ce804b61b8b719
+    # latest commit, updated by cron-update-docs-workflow-pin.yaml
+    uses: telemetryforge/documentation/.github/workflows/call-add-mapping-version.yaml@22ab1e2f40c0c20b59beb1db70ce804b61b8b719 # main
     with:
       agent-version: ${{ needs.get-meta.outputs.version }}
       oss-version: ${{ needs.get-meta.outputs.oss-version }}

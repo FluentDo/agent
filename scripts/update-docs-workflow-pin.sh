@@ -37,6 +37,10 @@ fi
 
 # Get the latest commit SHA from the main branch of the documentation repo
 LATEST_SHA=$(gh api repos/telemetryforge/documentation/commits/main --jq .sha)
+if [[ -z "$LATEST_SHA" ]]; then
+    echo "ERROR: Failed to retrieve latest commit SHA from telemetryforge/documentation"
+    exit 1
+fi
 
 sed_wrapper -i -E "s#(uses:[[:space:]]*telemetryforge/documentation/\.github/workflows/call-add-mapping-version\.yaml@)[0-9a-f]{40}#\1${LATEST_SHA}#" "$TARGET_WORKFLOW"
 
