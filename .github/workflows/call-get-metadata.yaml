@@ -79,13 +79,15 @@ jobs:
         id: set-version-from-tag
         run: |
           # For releases we use the tag
-          TAG_NAME=${GITHUB_REF#refs/tags/}
+          TAG_NAME=${INPUT_REF#refs/tags/}
           echo "Found tag: $TAG_NAME"
           # Strip first character (the 'v')
           VERSION=${TAG_NAME:1}
           echo "Using version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         shell: bash
+        env:
+          INPUT_REF: ${{ inputs.ref }}
 
       - name: Get the version from Dockerfile
         if: ${{ !inputs.get-version-from-tag }}
