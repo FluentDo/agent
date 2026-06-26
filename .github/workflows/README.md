@@ -817,101 +817,80 @@ Used by the `staging-upload` job in `build.yaml` and the `release` job in `relea
 
 ```mermaid
 sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub
-    participant Meta as get-meta
-    participant Build as Build Jobs
-    participant Test as Test Jobs
-    participant Release as Release Job
-    participant Registry as Container Registry
-    participant Docs as Documentation
-    participant Brew as Homebrew
+  participant PR as pull_request
+  participant Push as push(main/release/**)
+  participant Tag as push(v*)
+  participant PRBuild as pr-build.yaml
+  participant BranchBuild as build.yaml
+  participant RelBuild as release-build.yaml
+  participant Registry as GHCR
+  participant GCS as GCS Buckets
+  participant Docs as External Docs Workflow
 
-    Dev->>GH: Push tag v1.2.3
-    GH->>Meta: Extract metadata
-    Meta->>Meta: Determine version, targets
-    Meta-->>Build: Provide build config
-    
-    par Build Container Images
-        Build->>Build: Build AMD64 images
-        Build->>Build: Build ARM64 images
-        Build->>Build: Create manifests
-        Build->>Build: Sign with Cosign
-        Build->>Registry: Push images
-    and Build Linux Packages
-        Build->>Build: Build DEB packages
-        Build->>Build: Build RPM packages
-        Build->>GH: Upload artifacts
-    and Build Windows Packages
-        Build->>Build: Build EXE/MSI/ZIP
-        Build->>GH: Upload artifacts
-    and Build macOS Packages
-        Build->>Build: Build PKG (Intel)
-        Build->>Build: Build PKG (Apple)
-        Build->>GH: Upload artifacts
+  alt PR validation context
+    PR->>PRBuild: Trigger PR pipeline
+    PRBuild->>PRBuild: get-meta (full linux targets)
+    PRBuild->>PRBuild: build-image (platforms=[amd64], UBI+Debian)
+    PRBuild->>Registry: Push PR container images
+    PRBuild->>PRBuild: test-containers (UBI+Debian)
+    opt PR labels request package builds
+      PRBuild->>PRBuild: build-linux / build-windows / build-macos
+      PRBuild->>PRBuild: test-packages
     end
-    
-    Build-->>Test: Trigger tests
-    
-    par Test Containers
-        Test->>Test: BATS tests
-        Test->>Test: Verify signatures
-        Test->>Test: K8s tests (multiple versions)
-        Test->>Test: Red Hat certification
-    and Test Packages
-        Test->>Test: Functional tests
-        Test->>Test: Integration tests
-    end
-    
-    Test-->>Release: All tests pass
-    
-    Release->>Registry: Pull images
-    Release->>Release: Generate SBOMs
-    Release->>Release: Create tarball
-    Release->>GH: Create GitHub release
-    Release->>GH: Upload artifacts
-    
-    alt Version tag on main branch
-        Release->>Docs: Update documentation
-        Release->>Brew: Update Homebrew formula
-    end
+    PRBuild->>PRBuild: tests-complete
+  else Branch staging context
+    Push->>BranchBuild: Trigger branch pipeline
+    BranchBuild->>BranchBuild: get-meta (release linux targets)
+    BranchBuild->>BranchBuild: build-image (default platforms)
+    BranchBuild->>Registry: Push signed multi-arch images
+    BranchBuild->>BranchBuild: build-linux + build-windows (+ build-macos if enabled)
+    BranchBuild->>BranchBuild: test-containers + test-packages
+    BranchBuild->>BranchBuild: staging-upload (sign packages)
+    BranchBuild->>GCS: Upload staging artifacts
+    BranchBuild->>BranchBuild: tests-complete
+  else Tagged release context
+    Tag->>RelBuild: Trigger release pipeline
+    RelBuild->>RelBuild: get-meta (version from tag)
+    RelBuild->>RelBuild: build-image + build-linux + build-windows (+ build-macos if enabled)
+    RelBuild->>Registry: copy-common-images
+    RelBuild->>RelBuild: release job (SBOM, schema, tarballs, signing)
+    RelBuild->>GCS: Upload release artifacts
+    RelBuild->>Docs: update-docs
+  end
 ```
 
 ### Container Build Flow
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Calling Workflow
-    participant Build as build-single-arch
-    participant Manifest as build-manifest
-    participant Sign as sign-images
+  participant Caller as Calling Workflow
+  participant Multi as call-build-containers
+  participant Single as call-build-container-single-arch
+  participant Manifest as build-container-image-manifest
+  participant Sign as build-container-images-sign
     participant Registry as GHCR
 
-    Caller->>Build: Start build (selected platforms)
-    
-    par AMD64 Build
-        Build->>Build: Build production image
-        Build->>Build: Build test image (AMD64 only)
-        Build->>Build: Export digest
-        Build->>Registry: Push by digest
-    and ARM64 Build
-        Build->>Build: Build production image
-        Build->>Build: Export digest
-        Build->>Registry: Push by digest
-    and s390x Build
-      Build->>Build: Build production image
-      Build->>Build: Export digest
-      Build->>Registry: Push by digest
+  Caller->>Multi: with version/ref/platforms/nightly-build-info
+  Multi->>Multi: Matrix image-base=[UBI,Debian]
+  Multi->>Multi: Matrix platform=from inputs.platforms
+
+  par For each image-base x platform
+    Multi->>Single: Invoke single-arch reusable workflow
+    Single->>Single: Build production image by digest
+    alt platform == amd64
+      Single->>Single: Build amd64 test image
     end
-    
-    Build->>Manifest: Upload digests
+    Single->>Registry: Push image digest(s)
+    Single-->>Multi: Upload digest artifact
+    end
+
     Manifest->>Manifest: Download all digests
-    Manifest->>Manifest: Create multi-arch manifest
-    Manifest->>Registry: Push manifest
-    
+  Manifest->>Manifest: Create per-image multi-arch manifest
+  Manifest->>Registry: Push manifests
+
     Manifest->>Sign: Trigger signing
-    Sign->>Sign: Sign with Cosign key
-    Sign->>Sign: Sign with OIDC
+  Sign->>Sign: Sign manifests with key (optional)
+  Sign->>Sign: Sign manifests with OIDC
     Sign->>Registry: Push signatures
 ```
 
@@ -919,35 +898,28 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Calling Workflow
-    participant Build as build-packages
-    participant Meta as test-get-meta
-    participant Functional as test-functional
-    participant Integration as test-integration
-    participant GH as GitHub Artifacts
+  participant PR as pr-build/pr-comment-build
+  participant Branch as build.yaml
+  participant Release as release-build.yaml
+  participant BuildLinux as call-build-linux-packages
+  participant TestPkgs as call-test-packages
+  participant Artifacts as GitHub Artifacts
 
-    Caller->>Build: Start package build
-    
-    par Build for Each Distro
-        Build->>Build: Setup build environment
-        Build->>Build: Build DEB/RPM
-        Build->>GH: Upload package artifact
-    end
-    
-    Build->>Meta: Trigger tests
-    Meta->>Meta: Convert build matrix
-    Meta->>Meta: Verify Docker images
-    Meta-->>Functional: Provide test matrix
-    
-    par Functional Tests
-        Functional->>GH: Download packages
-        Functional->>Functional: Build test container
-        Functional->>Functional: Run BATS tests
-    and Integration Tests
-        Integration->>GH: Download packages
-        Integration->>Integration: Install on target OS
-        Integration->>Integration: Run BATS tests
-    end
+  alt PR label or PR comment requests linux packages
+    PR->>BuildLinux: Build requested linux targets
+    BuildLinux->>Artifacts: Upload package artifacts
+    PR->>TestPkgs: Test same linux target matrix
+    TestPkgs->>Artifacts: Download artifacts
+    TestPkgs->>TestPkgs: Functional + integration tests
+  else Branch build context
+    Branch->>BuildLinux: Build release linux targets
+    BuildLinux->>Artifacts: Upload package artifacts
+    Branch->>TestPkgs: Test release linux target matrix
+  else Tagged release context
+    Release->>BuildLinux: Build release linux targets
+    BuildLinux->>Artifacts: Upload package artifacts
+    Note over Release,TestPkgs: release-build.yaml does not run package tests
+  end
 ```
 
 ### Auto Release Flow
@@ -955,32 +927,39 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Cron as Scheduled Trigger
+  participant Manual as workflow_dispatch
     participant Find as find-last-good
     participant Tag as create-tag
     participant GH as GitHub
     participant Build as Build Workflow
 
-    Cron->>Find: Trigger (Monday/Tuesday)
-    Find->>Find: Determine branch (25.10-lts or main)
+  alt Scheduled run
+    Cron->>Find: 1st day 14:00 / 15th day 14:00 / Mondays 10:00
+    Find->>Find: Select branch+prefix from schedule
+  else Manual run
+    Manual->>Find: branch + tag-prefix + dry-run
+  end
+
     Find->>GH: Query workflow runs
+  Find->>Find: Workflow=Branch Build and Test, Job=All tests complete
     Find->>Find: Find last successful build
     Find-->>Tag: Provide commit SHA
-    
+
     Tag->>GH: Checkout commit
-    Tag->>Tag: Calculate next version
-    
-    alt LTS Release (Monday)
-        Tag->>Tag: Increment patch (v25.10.x)
-    else Mainline Release (Tuesday)
-        Tag->>Tag: Calculate vYY.M.W
+  alt branch != main
+    Tag->>Tag: Compute next incremental LTS tag
+  else branch == main
+    Tag->>Tag: Compute date-based mainline tag vYY.M.W
     end
-    
+
     Tag->>GH: Check if tag exists
-    
+
     alt Tag doesn't exist
         Tag->>GH: Create tag
-        Tag->>GH: Push tag (with PAT)
-        GH->>Build: Trigger build workflow
+    opt dry-run is false
+      Tag->>GH: Push tag (PAT)
+      GH->>Build: Trigger release workflows
+    end
     else Tag exists
         Tag->>Tag: Exit (no action)
     end
@@ -991,80 +970,84 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Caller as Calling Workflow
-    participant Meta as get-meta
-    participant BATS as test-bats
-    participant Sig as test-signatures
-    participant RH as test-redhat
-    participant K8s as test-kubernetes
-    participant Complete as test-complete
+  participant Meta as get-meta
+  participant BATS as test-bats-container
+  participant Sig as test-verify-signatures
+  participant RH as test-redhat-certification
+  participant K8s as test-kubernetes(matrix)
+  participant K8sCall as call-test-containers-k8s
+  participant Complete as test-complete
 
-    Caller->>Meta: Extract K8s versions
-    Meta-->>BATS: Provide config
-    
-    par Container Tests
-        BATS->>BATS: Pull test image
-        BATS->>BATS: Run BATS functional tests
-        BATS->>BATS: Run integration tests
-    and Signature Verification
-        Sig->>Sig: Setup Cosign
-        Sig->>Sig: Verify image signature
-    and Red Hat Certification
-        alt UBI Image
-            RH->>RH: Setup Preflight
-            RH->>RH: Run certification checks
-            RH->>RH: Validate results
-        end
-    and Kubernetes Tests
-        K8s->>K8s: Create Kind cluster (v1.x)
-        K8s->>K8s: Setup Helm/kubectl
-        K8s->>K8s: Run integration tests
-        K8s->>K8s: Create Kind cluster (v1.y)
-        K8s->>K8s: Run integration tests
+  Caller->>Meta: Read kind_versions from build-config.json
+
+  par BATS and integration tests
+    Meta->>BATS: start
+    BATS->>BATS: Pull image/test variant
+    BATS->>BATS: Run BATS functional+integration tests
+  and Signature verification
+    Meta->>Sig: start
+    Sig->>Sig: Verify Cosign signatures
+  and Red Hat certification
+    alt image contains '/ubi'
+      Meta->>RH: start
+      RH->>RH: Run preflight certification checks
+    else non-UBI image
+      RH->>RH: Skipped
     end
-    
-    BATS-->>Complete: Test results
-    Sig-->>Complete: Verification results
-    RH-->>Complete: Certification results
-    K8s-->>Complete: K8s test results
-    
-    Complete->>Complete: Aggregate results
-    Complete->>Complete: Check all passed
+  and Kubernetes matrix tests
+    Meta->>K8s: start matrix(kind_versions)
+    K8s->>K8sCall: invoke reusable k8s test workflow
+    K8sCall->>K8sCall: Create kind cluster + run tests
+  end
+
+  BATS-->>Complete: result
+  Sig-->>Complete: result
+  RH-->>Complete: result
+  K8s-->>Complete: result
+  Complete->>Complete: Aggregate with alls-green
 ```
 
 ### Version Update Flow
 
 ```mermaid
 sequenceDiagram
-    participant Tag as Tag Push
+  participant Tag as push(v*)
+  participant Manual as workflow_dispatch
     participant Update as update-version
     participant GCP as GCP Secrets
     participant GH as GitHub
     participant PR as Pull Request
 
+  alt Tag-triggered run
     Tag->>Update: Trigger on v* tag
+  else Manual run
+    Manual->>Update: Trigger with new-tag/base-branch/dry-run
+  end
+
     Update->>Update: Checkout code
-    Update->>Update: Determine version type
-    
-    alt LTS Tag (v25.10.x)
-        Update->>Update: Increment patch version
-        Update->>Update: Set base branch (release/25.10-lts)
-    else Mainline Tag
-        Update->>Update: Calculate next week version
-        Update->>Update: Set base branch (main)
+  alt Manual run
+    Update->>Update: Use provided new-tag and base-branch
+  else LTS tag (v25.10.x or v26.4.x)
+    Update->>Update: Increment patch version
+    Update->>Update: Set base branch release/x.y-lts
+  else Mainline tag
+    Update->>Update: Calculate next calendar week version
+    Update->>Update: Set base branch main
     end
-    
+
     Update->>Update: Run update-version.sh
     Update->>Update: Apply version changes
-    
+
     Update->>GCP: Authenticate
     Update->>GCP: Get GitHub PAT
-    
+
+  opt not dry-run
     Update->>PR: Create PR with changes
     PR->>PR: Add ci, automerge labels
     Update->>GH: Enable auto-merge
-    
     GH->>GH: CI checks pass
     GH->>GH: Auto-merge PR
+  end
 ```
 
 ## Configuration Files
@@ -1162,7 +1145,7 @@ Required secrets for workflows:
    - Update documentation
 
 4. **Versioning**:
-   - LTS: `v25.10.x` (incremental)
+   - LTS: `v25.10.x`, `v26.4.x` (incremental)
    - Mainline: `vYY.M.W` (year.month.week)
 
 ## Troubleshooting
