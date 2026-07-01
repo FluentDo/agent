@@ -47,7 +47,7 @@ jobs:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Debug
         uses: raven-actions/debug@9dbdeb7eea607a7d73411895c65987e71d59a466 # v1.2.0
@@ -321,7 +321,7 @@ jobs:
         with:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         # We need full history to be able to detect branch ancestry
         with:
           fetch-depth: 0
@@ -477,7 +477,7 @@ jobs:
       - name: Create release
         if: github.ref_type == 'tag'
         # This may fail for workflow_dispatch if the release already exists
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           append_body: true
           token: ${{ steps.get-secrets-release.outputs.github-pat }}
