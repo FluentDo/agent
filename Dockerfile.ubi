@@ -173,6 +173,12 @@ USER 9876
 FROM bats/bats:1.13.0 AS bats
 FROM production AS test
 
+# Indicate we are a container (used in some tests to determine if running in a container or not)
+ARG TELEMETRY_FORGE_AGENT_IMAGE=ghcr.io/telemetryforge/agent/ubi \
+    TELEMETRY_FORGE_AGENT_TAG=latest
+ENV TELEMETRY_FORGE_AGENT_IMAGE=${TELEMETRY_FORGE_AGENT_IMAGE} \
+    TELEMETRY_FORGE_AGENT_TAG=${TELEMETRY_FORGE_AGENT_TAG}
+
 # Switch to root to install findutils and BATS
 USER root
 

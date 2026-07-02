@@ -227,6 +227,13 @@ FROM bats/bats:1.13.0 AS bats
 
 # Unfortunately running BATS in a distroless image is not feasible
 FROM debug-test-base AS test
+
+# Indicate we are a container (used in some tests to determine if running in a container or not)
+ARG TELEMETRY_FORGE_AGENT_IMAGE=ghcr.io/telemetryforge/agent/debian \
+    TELEMETRY_FORGE_AGENT_TAG=latest
+ENV TELEMETRY_FORGE_AGENT_IMAGE=${TELEMETRY_FORGE_AGENT_IMAGE} \
+    TELEMETRY_FORGE_AGENT_TAG=${TELEMETRY_FORGE_AGENT_TAG}
+
 # Install BATS
 COPY --from=bats /opt/bats /opt/bats
 RUN /opt/bats/install.sh /usr/local
