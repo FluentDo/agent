@@ -115,9 +115,9 @@ jobs:
         id: set-linux-targets
         run: |
           if [[ "${{ inputs.use-full-linux-targets }}" == "true" ]]; then
-            LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          else
             LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
+          else
+            LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
           fi
           echo "linux-targets=$LINUX_TARGETS"
           echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
