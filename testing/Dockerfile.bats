@@ -8,6 +8,9 @@ FROM ${BASE_BUILDER} AS test
 COPY --from=bats /opt/bats /opt/bats
 RUN /opt/bats/install.sh /usr/local
 
+# Make sure we set the SHELL to allow next step to work on all targets (ubuntu in particular)
+SHELL ["/bin/bash", "-c"]
+
 # Install git for testing the git config plugin
 RUN if ! command -v git &>/dev/null; then \
         if command -v yum &>/dev/null; then \
