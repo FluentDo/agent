@@ -53,6 +53,7 @@ jobs:
     uses: ./.github/workflows/call-get-image-base-names.yaml
     permissions:
       contents: read
+
   get-metadata:
     name: Get metadata
     runs-on: ubuntu-latest
@@ -85,83 +86,45 @@ jobs:
           echo "date=$(date '+%Y-%m-%d-%H_%M_%S')" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Get the version from git tag
-        if: inputs.get-version-from-tag
-        id: set-version-from-tag
+      - name: Determine version output
+        id: set-version
         run: |
-          # For releases we use the tag
-          TAG_NAME=${INPUT_REF#refs/tags/}
-          echo "Found tag: $TAG_NAME"
-          # Strip first character (the 'v')
-          VERSION=${TAG_NAME:1}
-          echo "Using version: $VERSION"
+          if [[ "${{ inputs.get-version-from-tag }}" == "true" ]]; then
+            # For releases we use the tag
+            TAG_NAME=${INPUT_REF#refs/tags/}
+            echo "Found tag: $TAG_NAME"
+            # Strip first character (the 'v')
+            VERSION=${TAG_NAME:1}
+          else
+            # Support LTS version for backwards compatibility, but default to the new version variable
+            if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
+              echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
+              VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+            else
+              echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
+              VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
+            fi
+          fi
+          echo "version=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         shell: bash
         env:
           INPUT_REF: ${{ inputs.ref }}
 
-      - name: Get the version from Dockerfile
-        if: ${{ !inputs.get-version-from-tag }}
-        id: set-version-from-dockerfile
-        run: |
-          # Support LTS version for backwards compatibility, but default to the new version variable
-          if grep -q "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi; then
-            echo "Found TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi"
-            VERSION=$(grep "ARG TELEMETRY_FORGE_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          else
-            echo "Could not find TELEMETRY_FORGE_AGENT_VERSION in Dockerfile.ubi, attempting legacy version check for backwards compatibility"
-            VERSION=$(grep "ARG FLUENTDO_AGENT_VERSION=" Dockerfile.ubi | cut -d '=' -s -f 2 -)
-          fi
-
-          echo "Using version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Determine version output
-        id: set-version
-        run: |
-          if [[ "${{ inputs.get-version-from-tag }}" == "true" ]]; then
-            VERSION="${{ steps.set-version-from-tag.outputs.version }}"
-          else
-            VERSION="${{ steps.set-version-from-dockerfile.outputs.version }}"
-          fi
-          echo "version=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Extract full Linux targets from build config
-        if: inputs.use-full-linux-targets
-        id: set-linux-targets-full
-        run: |
-          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
-          echo "linux-targets=$LINUX_TARGETS"
-          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          JSON_FILE_NAME: build-config.json
-
-      - name: Extract release Linux targets from build config
-        if: ${{ !inputs.use-full-linux-targets }}
-        id: set-linux-targets-release
-        run: |
-          LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
-          echo "linux-targets=$LINUX_TARGETS"
-          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          JSON_FILE_NAME: build-config.json
-
       - name: Determine Linux targets output
         id: set-linux-targets
         run: |
           if [[ "${{ inputs.use-full-linux-targets }}" == "true" ]]; then
-            TARGETS="${{ steps.set-linux-targets-full.outputs.linux-targets }}"
+            LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .release.linux_targets )
           else
-            TARGETS="${{ steps.set-linux-targets-release.outputs.linux-targets }}"
+            LINUX_TARGETS=$(cat "$JSON_FILE_NAME"|jq -c .linux_targets )
           fi
-          echo "linux-targets=$TARGETS"
-          echo "linux-targets=$TARGETS" >> $GITHUB_OUTPUT
+          echo "linux-targets=$LINUX_TARGETS"
+          echo "linux-targets=$LINUX_TARGETS" >> $GITHUB_OUTPUT
         shell: bash
+        env:
+          JSON_FILE_NAME: build-config.json
+
 
       - name: Get the OSS version
         id: set-oss-version
