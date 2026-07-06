@@ -32,7 +32,6 @@ setupRepo() {
     mkdir -p "$repoDir"
     pushd "$repoDir"
         git init
-        git branch -m main
         
         git config user.name "Test User"
         git config user.email "ignore@telemetryforge.io"
@@ -40,6 +39,10 @@ setupRepo() {
         cp "$BATS_TEST_DIRNAME/resources/"*.yaml .
         git add .
         git commit -m "Initial commit"
+
+        # We do this here so it does not fail on older git versions after initialising the repo
+        git branch -M main
+        
         echo "Made initial commit with SHA '$(git rev-parse HEAD)'"
     popd
 }
