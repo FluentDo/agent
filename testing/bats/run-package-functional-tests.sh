@@ -22,8 +22,13 @@ export FLUENT_BIT_BINARY=${FLUENT_BIT_BINARY:-/opt/telemetryforge-agent/bin/flue
 export TELEMETRY_FORGE_AGENT_URL=${TELEMETRY_FORGE_AGENT_URL:-https://staging.telemetryforge.io}
 export TELEMETRY_FORGE_AGENT_VERSION=${TELEMETRY_FORGE_AGENT_VERSION:-26.7.1}
 
-# Location of packages to test
+# Location of packages to test: wipe this locally for a different target
 export DOWNLOAD_DIR=${DOWNLOAD_DIR:-$PWD/downloads}
+# Set CLEAN_DOWNLOAD to anything non-empty to wipe the download directory before running tests
+if [[ -n "${CLEAN_DOWNLOAD:-}" ]]; then
+	# If CLEAN_DOWNLOAD is set, wipe the download directory
+	rm -rf "$DOWNLOAD_DIR"
+fi
 mkdir -p "$DOWNLOAD_DIR"
 
 # We have to break into two separate steps as first it will look for *.rpm then *.deb
