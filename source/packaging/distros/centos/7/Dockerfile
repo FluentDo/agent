@@ -25,12 +25,12 @@ RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-7-${CACHE_
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel libgit2-devel \
+    libyaml-devel \
     tar gzip && \
     yum install -y epel-release && \
     yum install -y cmake3 && \
     yum install -y scl-utils-build devtoolset-9 && \
-    yum install -y perl-IPC-Cmd perl-Data-Dumper
+    yum install -y perl-IPC-Cmd perl-Data-Dumper libgit2_1.7-devel
 # Split into separate layer to allow us to cache above
 RUN yum clean all && scl enable devtoolset-9 bash && echo "source /opt/rh/devtoolset-9/enable" >> /etc/bashrc
 SHELL ["/bin/bash", "--login", "-c"]
