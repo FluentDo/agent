@@ -12,6 +12,7 @@ while [ -L "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 	[[ $SOURCE != /* ]] && SOURCE=$SCRIPT_DIR/$SOURCE
 done
 SCRIPT_DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
+REPO_ROOT=${REPO_ROOT:-$SCRIPT_DIR/../../}
 
 export CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
 export BASE_IMAGE=${BASE_IMAGE:-dokken/centos-6}
@@ -54,10 +55,7 @@ if [[ $FOUND_FILES == false ]]; then
 		echo "ERROR: Unable to find package in $DOWNLOAD_DIR"
 		exit 1
 	else
-		echo "INFO: Package to use is not present in $DOWNLOAD_DIR so will download now"
-		echo "INFO: e.g. cd $DOWNLOAD_DIR && curl -sSfLO ${TELEMETRY_FORGE_AGENT_URL}/${TELEMETRY_FORGE_AGENT_VERSION}/output/package-almalinux-8/telemetryforge-agent-${TELEMETRY_FORGE_AGENT_VERSION}.x86_64.rpm"
-
-		# Set up overrides for install script
+		# Set up overrides for build or install scripts
 		# almalinux/8 becomes DISTRO_ID=almalinux, DISTRO_VERSION=8
 		# debian/bookworm becomes DISTRO_ID=debian, DISTRO_VERSION=bookworm
 		# ubuntu/24 becomes DISTRO_ID=ubuntu, DISTRO_VERSION=24
@@ -66,8 +64,21 @@ if [[ $FOUND_FILES == false ]]; then
 		DISTRO_VERSION=$(echo "$DISTRO" | cut -d'/' -f2)
 		export DISTRO_VERSION
 
-		# Use the install script to just download the image
-		"$SCRIPT_DIR"/../../install.sh --debug --download
+		echo "INFO: No package found in $DOWNLOAD_DIR, will build or download for $DISTRO_ID/$DISTRO_VERSION"
+		# If BUILD_PACKAGE is set, build the package first
+		if [[ -n "${BUILD_PACKAGE:-}" ]]; then
+			echo "INFO: Building package for $DISTRO as BUILD_PACKAGE is set"
+			# If BUILD_PACKAGE is set, build the package first
+			"$REPO_ROOT/build-package.sh" -d "$DISTRO"
+			echo "INFO: Package built for $DISTRO, copying to $DOWNLOAD_DIR for test container to find it"
+			# Need to copy the package to the download directory for the test container to find it
+			cp -fv "${REPO_ROOT}/source/packaging/packages/${DISTRO_ID}/${DISTRO_VERSION}/agent/"telemetryforge-agent-*.{rpm,deb} "$DOWNLOAD_DIR"/
+			echo "INFO: Package built for $DISTRO and placed in $DOWNLOAD_DIR"
+		else
+			echo "INFO: Package to use is not present in $DOWNLOAD_DIR so will download now"
+			# Use the install script to just download the image
+			"$REPO_ROOT/install.sh" --debug --download
+		fi
 	fi
 fi
 
@@ -76,7 +87,7 @@ echo "INFO: building test container 'bats/test/$DISTRO'"
 	--build-arg BASE_BUILDER="$BASE_IMAGE" \
 	-f "$SCRIPT_DIR/../Dockerfile.bats" \
 	--target=test \
-	"$SCRIPT_DIR/../../"
+	"$REPO_ROOT"
 
 echo "INFO: running test container 'bats/test/$DISTRO'"
 "${CONTAINER_RUNTIME}" run --rm -t \

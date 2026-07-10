@@ -109,7 +109,8 @@ RUN curl -LO https://github.com/libgit2/libgit2/archive/refs/tags/v${LIBGIT2_VER
     tar xf v${LIBGIT2_VER}.tar.gz
 WORKDIR /tmp/libgit2-${LIBGIT2_VER}
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DLINK_WITH_STATIC_LIBRARIES=ON \
         -DUSE_SSH=ON \
         -DBUILD_TESTS=OFF \
         -DBUILD_CLI=OFF \
