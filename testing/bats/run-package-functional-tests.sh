@@ -72,7 +72,7 @@ if [[ $FOUND_FILES == false ]]; then
 			"$REPO_ROOT/build-package.sh" -d "$DISTRO"
 			echo "INFO: Package built for $DISTRO, copying to $DOWNLOAD_DIR for test container to find it"
 			# Need to copy the package to the download directory for the test container to find it
-			cp -fv "${REPO_ROOT}/source/packaging/packages/${DISTRO_ID}/${DISTRO_VERSION}/agent/"telemetryforge-agent-*.{rpm,deb} "$DOWNLOAD_DIR"/
+			cp -fv "${REPO_ROOT}/source/packaging/packages/${DISTRO_ID}/${DISTRO_VERSION}/agent/"* "$DOWNLOAD_DIR"/
 			echo "INFO: Package built for $DISTRO and placed in $DOWNLOAD_DIR"
 		else
 			echo "INFO: Package to use is not present in $DOWNLOAD_DIR so will download now"
