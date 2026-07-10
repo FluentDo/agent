@@ -16,11 +16,11 @@ name: Trigger build on PR comment
 # e.g. /build container=all windows
 #
 # Linux targets can be comma-separated list of distros, or 'all' to use full build-config targets
-# e.g. /build linux=ubuntu/20.04,centos/7 windows
-# e.g. /build linux=ubuntu/20.04 macos
+# e.g. /build linux=ubuntu/20.04,centos/7 windows (ubuntu/24.04 is auto-included for integration testing)
+# e.g. /build linux=ubuntu/20.04 macos (ubuntu/24.04 is auto-included)
 # e.g. /build linux=all windows
 # e.g. /build macos windows
-# e.g. /build linux=centos/7
+# e.g. /build linux=centos/7 (ubuntu/24.04 is auto-included)
 #
 # If no platform is specified then nothing is done
 on:
@@ -119,7 +119,7 @@ jobs:
                       }
                       // Deduplicate
                       out.containerPlatforms = [...new Set(out.containerPlatforms)];
-                  } else if (lower.startsWith('linux=')) {
+                    } else if (lower.startsWith('linux=')) {
                       // Parse linux targets: e.g. linux=ubuntu/20.04 or linux=ubuntu/20.04,centos/7 or linux=all
                       const rhs = raw.slice(raw.indexOf('=') + 1);
                       const arr = rhs.split(',').map(s => s.trim()).filter(Boolean);
@@ -129,6 +129,10 @@ jobs:
                         out.linuxTargets = ['all'];
                       } else {
                         out.linuxTargets.push(...arr);
+                        // Ensure package testing always includes the required ubuntu/24.04 target for integration testing, even if not specified in the comment
+                        if (!out.linuxTargets.some(t => t.toLowerCase() === 'ubuntu/24.04')) {
+                          out.linuxTargets.push('ubuntu/24.04');
+                        }
                       }
                   }
               }

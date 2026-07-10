@@ -161,8 +161,8 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 3. **pr-build-containers** - Builds requested container architectures (`amd64`, `arm64`, `s390x`, or `all`)
 4. **pr-build-windows** - Builds Windows packages when requested
 5. **pr-build-macos** - Builds macOS packages when requested
-6. **pr-build-linux** - Builds Linux packages for requested distro targets (or full target set with `linux=all`)
-7. **test-packages** - Runs Linux package tests for the selected Linux build matrix
+6. **pr-build-linux** - Builds Linux packages for requested distro targets (or full target set with `linux=all`). For explicit `linux=...` comments, `ubuntu/24.04` is always included if linux targets are built as it is required for integration tests.
+7. **test-packages** - Runs Linux package tests for the selected Linux build matrix (including required `ubuntu/24.04` for explicit `linux=...` comments)
 8. **pr-build-comment-response** - Posts a summary comment with per-job status and links
 
 **Comment Syntax Examples:**
@@ -171,6 +171,7 @@ The main CI/CD pipeline is split across three workflow files based on trigger co
 - `/build container=arm64,s390x`
 - `/build container=all`
 - `/build linux=ubuntu/24.04,centos/9`
+- `/build linux=centos/9`
 - `/build linux=all`
 - `/build container=amd64 linux=all windows`
 
