@@ -25,12 +25,12 @@ RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-7-${CACHE_
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel \
+    libyaml-devel libssh2-devel \
     tar gzip && \
     yum install -y epel-release && \
     yum install -y cmake3 && \
     yum install -y scl-utils-build devtoolset-9 && \
-    yum install -y perl-IPC-Cmd perl-Data-Dumper libgit2_1.7-devel
+    yum install -y perl-IPC-Cmd perl-Data-Dumper
 # Split into separate layer to allow us to cache above
 RUN yum clean all && scl enable devtoolset-9 bash && echo "source /opt/rh/devtoolset-9/enable" >> /etc/bashrc
 SHELL ["/bin/bash", "--login", "-c"]
@@ -65,12 +65,12 @@ RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-7-arm64-${
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel \
+    libyaml-devel libssh2-devel \
     tar gzip && \
     yum install -y epel-release && \
     yum install -y cmake3 && \
     yum install -y scl-utils-build devtoolset-9 && \
-    yum install -y perl-IPC-Cmd perl-Data-Dumper libgit2_1.7-devel
+    yum install -y perl-IPC-Cmd perl-Data-Dumper
 # Split into separate layer to allow us to cache above
 RUN yum clean all && scl enable devtoolset-9 bash && echo "source /opt/rh/devtoolset-9/enable" >> /etc/bashrc
 SHELL ["/bin/bash", "--login", "-c"]
@@ -101,6 +101,22 @@ ADD https://github.com/openssl/openssl/releases/download/openssl-3.5.2/openssl-3
 RUN tar -xzvf /openssl/openssl-3.5.2.tar.gz -C /openssl
 WORKDIR /openssl/openssl-3.5.2
 RUN ./Configure && make -j "$(getconf _NPROCESSORS_ONLN)" && make install
+
+# Build libgit2 from source to ensure >= 0.27.0 support for git_config plugin behavior
+ARG LIBGIT2_VER=1.9.1
+WORKDIR /tmp
+RUN curl -LO https://github.com/libgit2/libgit2/archive/refs/tags/v${LIBGIT2_VER}.tar.gz && \
+    tar xf v${LIBGIT2_VER}.tar.gz
+WORKDIR /tmp/libgit2-${LIBGIT2_VER}
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DUSE_SSH=ON \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_CLI=OFF \
+        -DOPENSSL_ROOT_DIR=/openssl/openssl-3.5.2 && \
+    cmake --build build --target install -- -j "$(getconf _NPROCESSORS_ONLN)" && \
+    echo "/usr/local/lib64" > /etc/ld.so.conf.d/libgit2.conf && \
+    ldconfig
 
 ARG FLB_NIGHTLY_BUILD
 ENV FLB_NIGHTLY_BUILD=$FLB_NIGHTLY_BUILD
