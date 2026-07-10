@@ -27,7 +27,7 @@ export DOWNLOAD_DIR=${DOWNLOAD_DIR:-$PWD/downloads}
 # Set CLEAN_DOWNLOAD to anything non-empty to wipe the download directory before running tests
 if [[ -n "${CLEAN_DOWNLOAD:-}" ]]; then
 	# If CLEAN_DOWNLOAD is set, wipe the download directory
-	rm -rf "$DOWNLOAD_DIR"
+	rm -rf "${DOWNLOAD_DIR:?}"/
 fi
 mkdir -p "$DOWNLOAD_DIR"
 
