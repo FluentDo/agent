@@ -144,9 +144,30 @@ teardown() {
 
 @test "Systemd service is properly formatted" {
     skipIfCentos6
+
     if ! command -v systemd-analyze &> /dev/null; then
         skip 'Skipping test: no systemd-analyze available'
     fi
-    systemd-analyze verify /lib/systemd/system/fluent-bit.service 2>/dev/null || \
-    systemd-analyze verify /usr/lib/systemd/system/fluent-bit.service 2>/dev/null
+
+    local service_file=""
+    if [[ -f "/lib/systemd/system/fluent-bit.service" ]]; then
+        service_file="/lib/systemd/system/fluent-bit.service"
+    elif [[ -f "/usr/lib/systemd/system/fluent-bit.service" ]]; then
+        service_file="/usr/lib/systemd/system/fluent-bit.service"
+    else
+        fail "Unable to find fluent-bit.service in /lib/systemd/system or /usr/lib/systemd/system"
+    fi
+
+    run systemd-analyze verify "$service_file" 2>&1
+    if [[ "$status" -ne 0 ]]; then
+        # Some environments have systemd-analyze installed but no active
+        # systemd manager/cgroup context (for example AL2 containers).
+        if [[ "$output" == *"Cannot determine cgroup we are running in"* ]] || \
+           [[ "$output" == *"Failed to initalize manager"* ]] || \
+           [[ "$output" == *"Failed to initialize manager"* ]]; then
+            skip "Skipping systemd-analyze verify: systemd manager context unavailable"
+        fi
+
+        fail "systemd-analyze verify failed for fluent-bit.service: $service_file"
+    fi
 }
