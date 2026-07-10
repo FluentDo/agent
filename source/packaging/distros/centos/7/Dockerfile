@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-7-${CACHE_
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel libssh2-devel \
+    libyaml-devel \
     tar gzip && \
     yum install -y epel-release && \
     yum install -y cmake3 && \
@@ -65,7 +65,7 @@ RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-7-arm64-${
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel libssh2-devel \
+    libyaml-devel \
     tar gzip && \
     yum install -y epel-release && \
     yum install -y cmake3 && \
@@ -101,6 +101,20 @@ ADD https://github.com/openssl/openssl/releases/download/openssl-3.5.2/openssl-3
 RUN tar -xzvf /openssl/openssl-3.5.2.tar.gz -C /openssl
 WORKDIR /openssl/openssl-3.5.2
 RUN ./Configure && make -j "$(getconf _NPROCESSORS_ONLN)" && make install
+
+# Build libssh2 from source as static library with -fPIC (required for libgit2)
+ARG LIBSSH2_VER=1.11.1
+WORKDIR /tmp
+RUN curl -LO https://www.libssh2.org/download/libssh2-${LIBSSH2_VER}.tar.gz && \
+    tar xf libssh2-${LIBSSH2_VER}.tar.gz
+WORKDIR /tmp/libssh2-${LIBSSH2_VER}
+RUN CFLAGS="-fPIC" \
+    LDFLAGS="-L/openssl/openssl-3.5.2 -L/usr/local/lib64" \
+    CPPFLAGS="-I/openssl/openssl-3.5.2/include" \
+    ./configure --prefix=/usr/local --enable-static --disable-shared --disable-examples-build \
+        --with-openssl --with-libssl-prefix=/openssl/openssl-3.5.2 && \
+    make -j "$(getconf _NPROCESSORS_ONLN)" && \
+    make install
 
 # Build libgit2 from source to ensure >= 0.27.0 support for git_config plugin behavior
 ARG LIBGIT2_VER=1.9.1
