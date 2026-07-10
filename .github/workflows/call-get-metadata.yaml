@@ -125,7 +125,6 @@ jobs:
         env:
           JSON_FILE_NAME: build-config.json
 
-
       - name: Get the OSS version
         id: set-oss-version
         run: |
