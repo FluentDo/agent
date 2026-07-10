@@ -21,9 +21,10 @@ RUN sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/almalinux-powertools.repo
 ARG CACHE_ID
 # hadolint ignore=DL3033,DL3032
 RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=almalinux-8-${CACHE_ID} yum -y update && \
+    yum install -y epel-release && \
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ cmake make bash \
     wget unzip systemd-devel wget flex bison \
-    cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libyaml-devel libgit2-devel pkgconf-pkg-config
+    cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libyaml-devel libgit2_1.7-devel pkgconf-pkg-config
 
 # Split into separate layer to allow us to cache above
 RUN yum clean all
@@ -40,9 +41,10 @@ RUN sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/almalinux-powertools.repo
 ARG CACHE_ID
 # hadolint ignore=DL3033,DL3032
 RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=almalinux-8-arm64-${CACHE_ID} yum -y update && \
+    yum install -y epel-release && \
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ cmake make bash \
     wget unzip systemd-devel wget flex bison \
-    cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libyaml-devel libgit2-devel pkgconf-pkg-config
+    cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libyaml-devel libgit2_1.7-devel pkgconf-pkg-config
 
 # Split into separate layer to allow us to cache above
 RUN yum clean all

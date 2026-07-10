@@ -30,10 +30,11 @@ ARG CACHE_ID
 # hadolint ignore=DL3033,DL3032
 RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-8-${CACHE_ID} \
     yum -y update && \
+    yum install -y epel-release && \
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel zlib-devel libgit2-devel \
+    libyaml-devel zlib-devel libgit2_1.7-devel \
     tar gzip
 # Split into separate layer to allow us to cache above
 RUN yum clean all
@@ -66,10 +67,11 @@ ARG CACHE_ID
 # hadolint ignore=DL3033,DL3032
 RUN --mount=type=cache,target=/var/cache/yum,sharing=locked,id=centos-8-arm64-${CACHE_ID} \
     yum -y update && \
+    yum install -y epel-release && \
     yum install -y rpm-build curl ca-certificates gcc gcc-c++ make bash \
     wget unzip systemd-devel wget flex bison \
     cyrus-sasl-lib cyrus-sasl-devel openssl openssl-libs openssl-devel libcurl-devel pkgconf-pkg-config \
-    libyaml-devel zlib-devel libgit2-devel \
+    libyaml-devel zlib-devel libgit2_1.7-devel \
     tar gzip
 # Split into separate layer to allow us to cache above
 RUN yum clean all
