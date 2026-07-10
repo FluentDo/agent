@@ -132,7 +132,7 @@ jobs:
 
       - name: Log in to the Container registry
         if: ${{ needs.build-image.result == 'success' }}
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -259,7 +259,7 @@ jobs:
 
       - name: Create release
         # This may fail for workflow_dispatch if the release already exists
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           append_body: true
           token: ${{ steps.get-secrets-release.outputs.github-pat }}
