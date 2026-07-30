@@ -223,7 +223,7 @@ ENV FLUENTBIT_VERSION=$FLUENT_BIT_VERSION
 ENV TELEMETRY_FORGE_AGENT_VERSION=$TELEMETRY_FORGE_AGENT_VERSION
 
 # Support running integration tests using BATS
-FROM bats/bats:1.13.0 AS bats
+FROM bats/bats:1.14.0 AS bats
 
 # Unfortunately running BATS in a distroless image is not feasible
 FROM debug-test-base AS test

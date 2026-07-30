@@ -170,7 +170,7 @@ RUN useradd -u 9876 -m -s /bin/false telemetryforge-agent
 USER 9876
 
 # Support running integration tests directly in the production image
-FROM bats/bats:1.13.0 AS bats
+FROM bats/bats:1.14.0 AS bats
 FROM production AS test
 
 # Indicate we are a container (used in some tests to determine if running in a container or not)
