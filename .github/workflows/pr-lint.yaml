@@ -31,7 +31,7 @@ jobs:
         with:
           persist-credentials: false
         # Ignores do not work: https://github.com/reviewdog/action-hadolint/issues/35 is resolved
-      - uses: reviewdog/action-hadolint@1b2cfa6ba72072ad35158d7ff3aa49bbdc03506d # v1.51.0
+      - uses: reviewdog/action-hadolint@2d0eb7c86a0ddd94eb625485f4cc2730e105edd8 # v1.53.0
 
   shellcheck-pr:
     runs-on: ubuntu-latest
