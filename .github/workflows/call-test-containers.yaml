@@ -177,7 +177,7 @@ jobs:
           password: ${{ secrets.github-token }}
 
       - name: Set up preflight binary
-        uses: redhat-actions/openshift-tools-installer@e3b32c2ab7b064b2ce189121c4a49f509a99a7b4 # v3.0
+        uses: redhat-actions/openshift-tools-installer@37eb3cfb20ac2df6f0511ffa71cd917e4d49cabf # v3.1
         with:
           preflight: latest
           source: github
@@ -250,7 +250,7 @@ jobs:
           egress-policy: ${{ env.STEP_SECURITY_EGRESS_POLICY }}
 
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # Add any jobs that can be skipped here to avoid failure of this job
           # test-redhat-certification is skipped if not UBI image
